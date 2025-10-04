@@ -1,0 +1,4 @@
+pyscard>=2.0.7
+ndeflib>=0.3.3
+pyperclip>=1.8.2
+PyQt5>=5.15.0
