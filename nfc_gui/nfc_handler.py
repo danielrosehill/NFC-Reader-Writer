@@ -17,18 +17,20 @@ from smartcard.System import readers
 def redirect_homebox_url(url: str) -> str:
     """
     Redirect local homebox URLs to the external domain.
-    Converts URLs from https://10.0.0.1:3100/item/X or http://10.0.0.1:3100/item/X
+    Converts URLs from https://10.0.0.1:3100/item/X or http://10.0.0.1:3100//item/X
     to https://homebox.residencejlm.com/item/X
     """
     if not url:
         return url
 
-    # Pattern to match both http and https with 10.0.0.1 and optional port
-    pattern = r'^https?://10\.0\.0\.1(?::\d+)?(/item/.*)$'
+    # Pattern to match both http and https with 10.0.0.1, optional port, and handle single or double slashes
+    pattern = r'^https?://10\.0\.0\.1(?::\d+)?(/+item/.*)$'
     match = re.match(pattern, url)
 
     if match:
-        path = match.group(1)  # Extract the /item/X part
+        path = match.group(1)  # Extract the /item/X or //item/X part
+        # Normalize to single slash
+        path = re.sub(r'^/+', '/', path)
         redirected_url = f"https://homebox.residencejlm.com{path}"
         return redirected_url
 
