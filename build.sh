@@ -5,7 +5,7 @@ set -e
 # Builds .deb package, standalone executable, and AppImage for Ubuntu Linux
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.0.0"
+APP_VERSION="1.0.1"
 AUTHOR="Daniel Rosehill"
 DESCRIPTION="NFC Reader/Writer GUI for ACS ACR1252"
 BUILD_DIR="build"

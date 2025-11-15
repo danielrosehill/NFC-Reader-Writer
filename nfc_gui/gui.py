@@ -35,7 +35,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v2.0.0")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.0.1")
         self.setGeometry(100, 100, 900, 700)
 
         # Set modern stylesheet
@@ -432,17 +432,24 @@ class NFCGui(QMainWindow):
         if redirected_url != url:
             self.log_message(f"Redirected: {url} → {redirected_url}", "info")
 
-        # Open in browser
+        # Open in Chrome browser
         try:
-            self.log_message(f"Opening browser: {redirected_url}", "info")
-            result = subprocess.run(['xdg-open', redirected_url], check=True, capture_output=True)
-        except Exception as e:
-            self.log_message(f"Failed to open browser with xdg-open: {e}", "error")
+            self.log_message(f"Opening in Chrome: {redirected_url}", "info")
+            result = subprocess.run(['google-chrome', redirected_url], check=True, capture_output=True)
+        except FileNotFoundError:
+            # Try chromium as fallback
             try:
-                webbrowser.open(redirected_url)
-                self.log_message(f"Opened with webbrowser fallback", "info")
-            except Exception as e2:
-                self.log_message(f"Failed to open with webbrowser: {e2}", "error")
+                self.log_message(f"Chrome not found, trying Chromium...", "warning")
+                result = subprocess.run(['chromium-browser', redirected_url], check=True, capture_output=True)
+            except FileNotFoundError:
+                # Final fallback to xdg-open
+                self.log_message(f"Chrome/Chromium not found, using default browser...", "warning")
+                try:
+                    subprocess.run(['xdg-open', redirected_url], check=True, capture_output=True)
+                except Exception as e:
+                    self.log_message(f"Failed to open with xdg-open: {e}", "error")
+        except Exception as e:
+            self.log_message(f"Failed to open browser: {e}", "error")
 
     def on_tag_written(self, message):
         """Handle tag write event"""
@@ -476,20 +483,28 @@ class NFCGui(QMainWindow):
             QMessageBox.warning(self, "Warning", "No URL to copy - read a tag first")
 
     def open_last_url(self):
-        """Open last URL in browser"""
+        """Open last URL in Chrome browser"""
         if self.last_url:
             try:
                 redirected_url = redirect_homebox_url(self.last_url)
-                self.log_message(f"Opening browser: {redirected_url}", "info")
-                subprocess.run(['xdg-open', redirected_url], check=True, capture_output=True)
-            except Exception as e:
-                self.log_message(f"Failed to open browser with xdg-open: {e}", "error")
+                self.log_message(f"Opening in Chrome: {redirected_url}", "info")
+                subprocess.run(['google-chrome', redirected_url], check=True, capture_output=True)
+            except FileNotFoundError:
+                # Try chromium as fallback
                 try:
-                    webbrowser.open(redirected_url)
-                    self.log_message(f"Opened with webbrowser fallback", "info")
-                except Exception as e2:
-                    self.log_message(f"Failed to open with webbrowser: {e2}", "error")
-                    QMessageBox.critical(self, "Error", f"Failed to open browser:\n{e2}")
+                    self.log_message(f"Chrome not found, trying Chromium...", "warning")
+                    subprocess.run(['chromium-browser', redirected_url], check=True, capture_output=True)
+                except FileNotFoundError:
+                    # Final fallback to xdg-open
+                    self.log_message(f"Chrome/Chromium not found, using default browser...", "warning")
+                    try:
+                        subprocess.run(['xdg-open', redirected_url], check=True, capture_output=True)
+                    except Exception as e:
+                        self.log_message(f"Failed to open with xdg-open: {e}", "error")
+                        QMessageBox.critical(self, "Error", f"Failed to open browser:\n{e}")
+            except Exception as e:
+                self.log_message(f"Failed to open browser: {e}", "error")
+                QMessageBox.critical(self, "Error", f"Failed to open browser:\n{e}")
         else:
             self.log_message("No URL to open - read a tag first", "warning")
             QMessageBox.warning(self, "Warning", "No URL to open - read a tag first")
