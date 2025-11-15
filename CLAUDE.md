@@ -44,3 +44,14 @@ It would also be useful to support batch operations for writing: I might occasio
 Clean UI
 
 Easy support for fast efficient inventory operations 
+
+## Other Details
+
+This is a private app for use on my own computer. 
+
+I will sometimes want to add features. So an easy update process is also key.
+
+Repo should have a script for:
+
+-> Build new debian package, append new version number  
+-> Update existing package 
