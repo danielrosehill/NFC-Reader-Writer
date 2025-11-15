@@ -27,17 +27,40 @@ A modern PyQt5-based GUI application for reading and writing NFC tags using the 
 - **Reader**: ACS ACR1252U
 - **Tags**: NXP NTAG213 (validated)
 
-## Installation & Usage
+## Installation
 
-Simply run the launcher script:
+### Quick Install (Recommended)
+
+Run the install script which builds and installs the Debian package:
+```bash
+./install.sh
+```
+
+This will:
+- Build the .deb package
+- Optionally install it
+- Set up all dependencies
+- Configure system permissions
+
+### Manual Installation
+
+Build the package:
+```bash
+./build-deb.sh
+```
+
+Install the package:
+```bash
+sudo dpkg -i dist/nfc-gui_1.0.1_amd64.deb
+sudo apt-get install -f
+```
+
+### Development Mode
+
+For development without installing:
 ```bash
 ./run-gui.sh
 ```
-
-The script will automatically:
-- Create a virtual environment (if needed)
-- Install all dependencies
-- Launch the GUI application
 
 Or manually:
 ```bash
@@ -95,9 +118,16 @@ When "Lock tag after writing" is enabled, tags will be **permanently locked** af
 
 ## URL Redirection
 
-The application includes built-in URL redirection for local Homebox instances:
-- Converts `http://10.0.0.1:3100/item/X` → `https://homebox.residencejlm.com/item/X`
-- Automatically applied when opening URLs in browser
+The application includes built-in URL redirection for local Homebox instances. All URLs in the 10.0.0.x subnet are automatically redirected to the external domain when opening in browser:
+
+**Supported formats (all redirect to `https://homebox.residencejlm.com/item/X`):**
+- `http://10.0.0.1:3100/item/X` - Standard format
+- `http://10.0.0.1:3100//item/X` - Double slash (normalized)
+- `https://10.0.0.3:3100/item/X` - Any IP in 10.0.0.x subnet
+- `https://10.0.0.3100/item/X` - Malformed port (automatically corrected)
+- `https://10.0.0.1/item/X` - No port specified
+
+External URLs and already-correct homebox.residencejlm.com URLs are not modified.
 
 ## Project Structure
 
@@ -107,11 +137,20 @@ NFC-GUI-1025/
 │   ├── __init__.py
 │   ├── gui.py           # PyQt5 GUI implementation
 │   └── nfc_handler.py   # Core NFC operations
-├── run-gui.sh           # Launch script (handles venv & dependencies)
+├── install.sh           # Build & install Debian package (recommended)
+├── build-deb.sh         # Build Debian package only
+├── run-gui.sh           # Launch in development mode
 ├── requirements.txt     # Python dependencies
-├── screenshots/         # GUI screenshots
-└── README.md           # This file
+├── CHANGELOG.md         # Version history
+└── README.md            # This file
 ```
+
+## Build Scripts
+
+- **`install.sh`** - Interactive installer (builds and optionally installs)
+- **`build-deb.sh`** - Build Debian package only (no installation)
+- **`build.sh`** - Legacy build script (supports multiple formats, not recommended)
+- **`run-gui.sh`** - Development mode launcher
 
 ## Troubleshooting
 

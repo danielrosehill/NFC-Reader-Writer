@@ -17,18 +17,36 @@ from smartcard.System import readers
 def redirect_homebox_url(url: str) -> str:
     """
     Redirect local homebox URLs to the external domain.
-    Converts URLs from https://10.0.0.1:3100/item/X or http://10.0.0.1:3100//item/X
-    to https://homebox.residencejlm.com/item/X
+    Handles various local formats:
+    - http://10.0.0.1:3100/item/X
+    - http://10.0.0.1:3100//item/X (double slash)
+    - https://10.0.0.3:3100/item/X (any IP in 10.0.0.x subnet)
+    - https://10.0.0.3100/item/X (malformed - port attached to IP)
+
+    All converted to: https://homebox.residencejlm.com/item/X
     """
     if not url:
         return url
 
-    # Pattern to match both http and https with 10.0.0.1, optional port, and handle single or double slashes
-    pattern = r'^https?://10\.0\.0\.1(?::\d+)?(/+item/.*)$'
-    match = re.match(pattern, url)
+    # Pattern 1: Match 10.0.0.x subnet with proper port (e.g., 10.0.0.1:3100)
+    # Handles both single and multiple slashes before /item/
+    pattern1 = r'^https?://10\.0\.0\.(\d{1,3})(?::\d+)?(/+item/.*)$'
+    match1 = re.match(pattern1, url)
 
-    if match:
-        path = match.group(1)  # Extract the /item/X or //item/X part
+    if match1:
+        path = match1.group(2)  # Extract the /item/X or //item/X part
+        # Normalize to single slash
+        path = re.sub(r'^/+', '/', path)
+        redirected_url = f"https://homebox.residencejlm.com{path}"
+        return redirected_url
+
+    # Pattern 2: Handle malformed URLs where port is attached to IP (e.g., 10.0.0.3100)
+    # This catches cases like https://10.0.0.3100/item/X
+    pattern2 = r'^https?://10\.0\.0\.(\d+)(/+item/.*)$'
+    match2 = re.match(pattern2, url)
+
+    if match2:
+        path = match2.group(2)  # Extract the /item/X or //item/X part
         # Normalize to single slash
         path = re.sub(r'^/+', '/', path)
         redirected_url = f"https://homebox.residencejlm.com{path}"
