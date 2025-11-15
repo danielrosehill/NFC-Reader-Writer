@@ -5,7 +5,7 @@ set -e
 # Builds .deb package, standalone executable, and AppImage for Ubuntu Linux
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.0.1"
+APP_VERSION="1.1.0"
 AUTHOR="Daniel Rosehill"
 DESCRIPTION="NFC Reader/Writer GUI for ACS ACR1252"
 BUILD_DIR="build"
@@ -118,9 +118,6 @@ EOF
         --hidden-import="smartcard.CardMonitoring" \
         --hidden-import="smartcard.CardConnection" \
         --hidden-import="pyperclip" \
-        --hidden-import="ndef" \
-        --hidden-import="ndef.uri" \
-        --hidden-import="ndef.record" \
         build/run_nfc_gui.py
 
     print_success "Executable built: dist/$APP_NAME"
@@ -146,7 +143,7 @@ Version: $APP_VERSION
 Section: utils
 Priority: optional
 Architecture: amd64
-Depends: python3 (>= 3.8), python3-pyqt5, pcscd, libpcsclite1
+Depends: python3 (>= 3.8), python3-pip, python3-pyqt5, python3-pyscard, python3-pyperclip, pcscd, libpcsclite1
 Maintainer: $AUTHOR
 Description: $DESCRIPTION
  A modern PyQt5-based GUI application for reading and writing NFC tags
@@ -158,17 +155,48 @@ EOF
 #!/bin/bash
 set -e
 
-# Add user to scard group if not already
-if groups $SUDO_USER | grep -q '\bscard\b'; then
-    echo "User already in scard group"
+# Determine target user for scard group membership
+TARGET_USER="${SUDO_USER:-}"
+if [ -z "$TARGET_USER" ]; then
+    TARGET_USER="$(logname 2>/dev/null || true)"
+fi
+
+# Ensure scard group exists
+if ! getent group scard >/dev/null; then
+    groupadd --system scard || true
+fi
+
+if [ -n "$TARGET_USER" ] && id "$TARGET_USER" &>/dev/null; then
+    if id -nG "$TARGET_USER" | grep -q '\bscard\b'; then
+        echo "User $TARGET_USER already in scard group"
+    else
+        usermod -a -G scard "$TARGET_USER" || true
+        echo "Added $TARGET_USER to scard group. Log out/in for permissions to take effect."
+    fi
 else
-    usermod -a -G scard $SUDO_USER || true
-    echo "Added user to scard group. Please log out and back in for changes to take effect."
+    echo "Could not determine desktop user; please ensure your account belongs to the 'scard' group." >&2
 fi
 
 # Ensure pcscd is enabled
-systemctl enable pcscd || true
-systemctl start pcscd || true
+systemctl enable pcscd 2>/dev/null || true
+systemctl start pcscd 2>/dev/null || true
+
+# Install Python dependencies (for ndeflib, etc.)
+if command -v pip3 &>/dev/null; then
+    cd /usr/share/nfc-gui
+    pip3 install -q -r requirements.txt --break-system-packages 2>/dev/null || \
+        pip3 install -q -r requirements.txt 2>/dev/null || true
+else
+    echo "pip3 not found; install python3-pip to ensure NFC GUI dependencies are available." >&2
+fi
+
+# Refresh desktop integration caches
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
+fi
 
 exit 0
 EOF
@@ -181,8 +209,10 @@ EOF
     # Create launcher script
     cat > "$DEB_DIR/usr/bin/$APP_NAME" << 'EOF'
 #!/bin/bash
-cd /usr/share/nfc-gui
-python3 -m nfc_gui.gui "$@"
+set -euo pipefail
+APP_DIR="/usr/share/nfc-gui"
+cd "$APP_DIR"
+exec python3 -m nfc_gui.gui "$@"
 EOF
     chmod 755 "$DEB_DIR/usr/bin/$APP_NAME"
 
@@ -193,8 +223,10 @@ Version=1.0
 Type=Application
 Name=NFC Reader/Writer
 Comment=$DESCRIPTION
-Exec=$APP_NAME
+Exec=/usr/bin/$APP_NAME
+TryExec=/usr/bin/$APP_NAME
 Icon=$APP_NAME
+StartupNotify=true
 Terminal=false
 Categories=Utility;
 Keywords=nfc;reader;writer;tag;

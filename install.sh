@@ -5,7 +5,7 @@ set -e
 # Builds and optionally installs the Debian package
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.0.1"
+APP_VERSION="1.1.0"
 BUILD_DIR="build"
 DIST_DIR="dist"
 DEB_FILE="${DIST_DIR}/${APP_NAME}_${APP_VERSION}_amd64.deb"
@@ -92,7 +92,7 @@ Version: $APP_VERSION
 Section: utils
 Priority: optional
 Architecture: amd64
-Depends: python3 (>= 3.8), python3-pyqt5, pcscd, libpcsclite1
+Depends: python3 (>= 3.8), python3-pip, python3-pyqt5, python3-pyscard, python3-pyperclip, pcscd, libpcsclite1
 Maintainer: Daniel Rosehill
 Description: NFC Reader/Writer GUI for ACS ACR1252
  A modern PyQt5-based GUI application for reading and writing NFC tags
@@ -111,14 +111,26 @@ cat > "$DEB_DIR/DEBIAN/postinst" << 'POSTINST'
 #!/bin/bash
 set -e
 
-# Add user to scard group if not already
-if [ -n "$SUDO_USER" ]; then
-    if groups $SUDO_USER | grep -q '\bscard\b'; then
-        echo "User already in scard group"
+# Determine desktop user
+TARGET_USER="${SUDO_USER:-}"
+if [ -z "$TARGET_USER" ]; then
+    TARGET_USER="$(logname 2>/dev/null || true)"
+fi
+
+# Ensure scard group exists
+if ! getent group scard >/dev/null; then
+    groupadd --system scard || true
+fi
+
+if [ -n "$TARGET_USER" ] && id "$TARGET_USER" &>/dev/null; then
+    if id -nG "$TARGET_USER" | grep -q '\bscard\b'; then
+        echo "User $TARGET_USER already in scard group"
     else
-        usermod -a -G scard $SUDO_USER || true
-        echo "Added user to scard group. Please log out and back in for changes to take effect."
+        usermod -a -G scard "$TARGET_USER" || true
+        echo "Added $TARGET_USER to scard group. Log out/in for permissions to take effect."
     fi
+else
+    echo "Could not determine desktop user; please ensure your account is part of the 'scard' group." >&2
 fi
 
 # Ensure pcscd is enabled
@@ -126,9 +138,21 @@ systemctl enable pcscd 2>/dev/null || true
 systemctl start pcscd 2>/dev/null || true
 
 # Install Python dependencies
-cd /usr/share/nfc-gui
-pip3 install -q -r requirements.txt --break-system-packages 2>/dev/null || \
-    pip3 install -q -r requirements.txt 2>/dev/null || true
+if command -v pip3 &>/dev/null; then
+    cd /usr/share/nfc-gui
+    pip3 install -q -r requirements.txt --break-system-packages 2>/dev/null || \
+        pip3 install -q -r requirements.txt 2>/dev/null || true
+else
+    echo "pip3 not found; install python3-pip to ensure NFC GUI dependencies are available." >&2
+fi
+
+# Refresh desktop caches
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
+fi
 
 exit 0
 POSTINST
@@ -141,8 +165,10 @@ cp requirements.txt "$DEB_DIR/usr/share/$APP_NAME/"
 # Create launcher script
 cat > "$DEB_DIR/usr/bin/$APP_NAME" << 'LAUNCHER'
 #!/bin/bash
-cd /usr/share/nfc-gui
-python3 -m nfc_gui.gui "$@"
+set -euo pipefail
+APP_DIR="/usr/share/nfc-gui"
+cd "$APP_DIR"
+exec python3 -m nfc_gui.gui "$@"
 LAUNCHER
 chmod 755 "$DEB_DIR/usr/bin/$APP_NAME"
 
@@ -153,8 +179,10 @@ Version=1.0
 Type=Application
 Name=NFC Reader/Writer
 Comment=NFC Reader/Writer GUI for ACS ACR1252
-Exec=$APP_NAME
+Exec=/usr/bin/$APP_NAME
+TryExec=/usr/bin/$APP_NAME
 Icon=$APP_NAME
+StartupNotify=true
 Terminal=false
 Categories=Utility;
 Keywords=nfc;reader;writer;tag;
@@ -189,11 +217,14 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         sudo dpkg -r $APP_NAME 2>/dev/null || true
     fi
 
-    # Install package
-    sudo dpkg -i "$DEB_FILE"
-
-    # Fix any dependency issues
-    sudo apt-get install -f -y
+    # Install package and repair dependencies if necessary
+    if ! sudo dpkg -i "$DEB_FILE"; then
+        print_warning "dpkg installation reported missing dependencies. Attempting to resolve..."
+        sudo apt-get install -f -y
+        sudo dpkg -i "$DEB_FILE"
+    else
+        sudo apt-get install -f -y
+    fi
 
     print_success "Installation complete!"
     echo ""

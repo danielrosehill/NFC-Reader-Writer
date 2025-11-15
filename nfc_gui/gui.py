@@ -35,7 +35,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.0.1")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.1.0")
         self.setGeometry(100, 100, 900, 700)
 
         # Set modern stylesheet
