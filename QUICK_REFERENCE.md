@@ -86,8 +86,8 @@ sudo apt install chromium-browser
 
 ## Version Info
 
-**Current**: 1.0.1
-**Package**: `dist/nfc-gui_1.0.1_amd64.deb`
+**Current**: 1.1.0
+**Package**: `dist/nfc-gui_1.1.0_amd64.deb`
 
 ## Common Tasks
 

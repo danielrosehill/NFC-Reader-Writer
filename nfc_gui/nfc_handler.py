@@ -17,40 +17,28 @@ from smartcard.System import readers
 def redirect_homebox_url(url: str) -> str:
     """
     Redirect local homebox URLs to the external domain.
-    Handles various local formats:
-    - http://10.0.0.1:3100/item/X
+    Handles formats such as:
+    - http://10.0.0.1:3100/item/X (single slash)
     - http://10.0.0.1:3100//item/X (double slash)
-    - https://10.0.0.3:3100/item/X (any IP in 10.0.0.x subnet)
-    - https://10.0.0.3100/item/X (malformed - port attached to IP)
-
-    All converted to: https://homebox.residencejlm.com/item/X
+    - https://10.0.0.x:3100/item/X (any host in 10.0.0.x subnet)
+    - https://10.0.0.3100/item/X (port digits attached to IP)
     """
     if not url:
         return url
 
-    # Pattern 1: Match 10.0.0.x subnet with proper port (e.g., 10.0.0.1:3100)
-    # Handles both single and multiple slashes before /item/
+    # Pattern 1: Match any 10.0.0.x host with optional port, allowing multiple slashes
     pattern1 = r'^https?://10\.0\.0\.(\d{1,3})(?::\d+)?(/+item/.*)$'
     match1 = re.match(pattern1, url)
-
     if match1:
-        path = match1.group(2)  # Extract the /item/X or //item/X part
-        # Normalize to single slash
-        path = re.sub(r'^/+', '/', path)
-        redirected_url = f"https://homebox.residencejlm.com{path}"
-        return redirected_url
+        path = re.sub(r'^/+', '/', match1.group(2))
+        return f"https://homebox.residencejlm.com{path}"
 
-    # Pattern 2: Handle malformed URLs where port is attached to IP (e.g., 10.0.0.3100)
-    # This catches cases like https://10.0.0.3100/item/X
+    # Pattern 2: Handle malformed URLs where port digits are attached to the last octet
     pattern2 = r'^https?://10\.0\.0\.(\d+)(/+item/.*)$'
     match2 = re.match(pattern2, url)
-
     if match2:
-        path = match2.group(2)  # Extract the /item/X or //item/X part
-        # Normalize to single slash
-        path = re.sub(r'^/+', '/', path)
-        redirected_url = f"https://homebox.residencejlm.com{path}"
-        return redirected_url
+        path = re.sub(r'^/+', '/', match2.group(2))
+        return f"https://homebox.residencejlm.com{path}"
 
     return url
 
