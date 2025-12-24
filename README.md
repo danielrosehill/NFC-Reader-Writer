@@ -53,7 +53,7 @@ Build the package:
 
 Install the package:
 ```bash
-sudo dpkg -i dist/nfc-gui_1.1.0_amd64.deb
+sudo dpkg -i dist/nfc-gui_1.0.0_amd64.deb
 sudo apt-get install -f
 ```
 
