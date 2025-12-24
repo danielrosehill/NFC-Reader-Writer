@@ -18,6 +18,28 @@ A modern PyQt5-based GUI application for reading and writing NFC tags using the 
 - **System Tray Integration**: Minimize to system tray for background operation
 - **Background Read Mode**: Continuous tag reading while minimized - perfect for always-on inventory management
 
+## Screenshots
+
+### Main Application Window
+![Main Window - Write Mode](screenshots/main-window-write-mode.png)
+
+The main interface showing Read/Write/Update mode controls, URL entry, batch writing options, and activity log.
+
+### URL Rewrite Settings
+![URL Rewrite Settings Dialog](screenshots/url-rewrite-settings.png)
+
+Configure regex patterns to automatically rewrite URLs when updating NFC tags (useful for migrating from local to public URLs).
+
+### System Tray Integration
+![System Tray Menu](screenshots/system-tray-menu.png)
+
+Right-click menu for background operation with continuous NFC reading.
+
+### Application Launcher
+![Application Launcher](screenshots/app-launcher-search.png)
+
+The application integrates with your desktop environment's application menu after installation.
+
 ## Hardware Requirements
 
 - ACS ACR1252U USB NFC Reader/Writer (tested)
