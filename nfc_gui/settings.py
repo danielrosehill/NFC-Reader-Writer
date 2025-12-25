@@ -23,6 +23,7 @@ class Settings:
     def __init__(self):
         self.source_pattern: str = self.DEFAULT_PATTERN
         self.target_base_url: str = self.DEFAULT_TARGET
+        self.tts_enabled: bool = True  # Voice announcements enabled by default
         self.load()
 
     def load(self) -> None:
@@ -33,6 +34,7 @@ class Settings:
                     data = json.load(f)
                     self.source_pattern = data.get('source_pattern', self.DEFAULT_PATTERN)
                     self.target_base_url = data.get('target_base_url', self.DEFAULT_TARGET)
+                    self.tts_enabled = data.get('tts_enabled', True)
             except (json.JSONDecodeError, IOError):
                 # Use defaults if file is corrupted
                 pass
@@ -44,7 +46,8 @@ class Settings:
             with open(self.CONFIG_FILE, 'w') as f:
                 json.dump({
                     'source_pattern': self.source_pattern,
-                    'target_base_url': self.target_base_url
+                    'target_base_url': self.target_base_url,
+                    'tts_enabled': self.tts_enabled
                 }, f, indent=2)
             return True
         except IOError:
