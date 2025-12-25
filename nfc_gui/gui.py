@@ -25,6 +25,8 @@ class NFCSignals(QObject):
     tag_written = pyqtSignal(str)  # Message about write completion
     tag_updated = pyqtSignal(str, str, bool)  # old_url, new_url, success
     outdated_detected = pyqtSignal(str, str)  # old_url, new_url (when old tag scanned in update mode)
+    update_tag_scanned = pyqtSignal(str, str)  # original_url, suggested_url (empty if no match)
+    locked_tag_with_url = pyqtSignal(str)  # URL from locked tag in write mode
     log_message = pyqtSignal(str, str)  # message, level
 
 
@@ -76,6 +78,18 @@ class SettingsDialog(QWidget):
 
         voice_group.setLayout(voice_layout)
         layout.addWidget(voice_group)
+
+        # Write mode behavior section
+        write_group = QGroupBox("Write Mode Behavior")
+        write_layout = QVBoxLayout()
+
+        self.open_locked_url_checkbox = QCheckBox("Open URL and switch to read mode when locked tag detected")
+        self.open_locked_url_checkbox.setChecked(self.settings.open_locked_tag_url)
+        self.open_locked_url_checkbox.setToolTip("When in write mode and a locked tag with a URL is presented, open the URL in browser and switch to read mode")
+        write_layout.addWidget(self.open_locked_url_checkbox)
+
+        write_group.setLayout(write_layout)
+        layout.addWidget(write_group)
 
         # Source pattern section
         pattern_group = QGroupBox("Source URL Pattern (regex)")
@@ -205,6 +219,7 @@ class SettingsDialog(QWidget):
 
         self.settings.set_rewrite_rule(pattern, target)
         self.settings.tts_enabled = self.tts_checkbox.isChecked()
+        self.settings.open_locked_tag_url = self.open_locked_url_checkbox.isChecked()
         if self.settings.save():
             QMessageBox.information(self, "Success", "Settings saved successfully")
             self.close()
@@ -225,6 +240,8 @@ class NFCGui(QMainWindow):
         self.signals.tag_written.connect(self.on_tag_written)
         self.signals.tag_updated.connect(self.on_tag_updated)
         self.signals.outdated_detected.connect(self.on_outdated_detected)
+        self.signals.update_tag_scanned.connect(self.on_update_tag_scanned)
+        self.signals.locked_tag_with_url.connect(self.on_locked_tag_with_url)
         self.signals.log_message.connect(self.log_message)
 
         # NFC Handler with settings
@@ -490,6 +507,113 @@ class NFCGui(QMainWindow):
         self.url_display_frame.setVisible(False)  # Hidden by default
         main_layout.addWidget(self.url_display_frame)
 
+        # Update mode UI frame (hidden by default)
+        self.update_mode_frame = QFrame()
+        self.update_mode_frame.setStyleSheet("""
+            QFrame {
+                background-color: #faf5ff;
+                border: 2px solid #a855f7;
+                border-radius: 10px;
+                padding: 8px;
+            }
+        """)
+        update_mode_layout = QVBoxLayout(self.update_mode_frame)
+        update_mode_layout.setContentsMargins(12, 8, 12, 8)
+        update_mode_layout.setSpacing(10)
+
+        # Original URL display (read-only)
+        original_url_header = QLabel("Scanned URL:")
+        original_url_header.setStyleSheet("color: #7e22ce; font-weight: 600; font-size: 12px; border: none;")
+        update_mode_layout.addWidget(original_url_header)
+
+        self.update_original_url_display = QLabel("Present a tag to scan")
+        self.update_original_url_display.setStyleSheet("""
+            QLabel {
+                color: #581c87;
+                font-size: 13px;
+                font-family: 'SF Mono', 'Consolas', monospace;
+                padding: 8px;
+                background-color: #ffffff;
+                border: 1px solid #e9d5ff;
+                border-radius: 6px;
+            }
+        """)
+        self.update_original_url_display.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.update_original_url_display.setWordWrap(True)
+        update_mode_layout.addWidget(self.update_original_url_display)
+
+        # Target URL input (editable, pre-populated with suggestion)
+        target_url_header = QLabel("New URL to write:")
+        target_url_header.setStyleSheet("color: #7e22ce; font-weight: 600; font-size: 12px; border: none;")
+        update_mode_layout.addWidget(target_url_header)
+
+        target_input_layout = QHBoxLayout()
+        self.update_target_url_input = QLineEdit()
+        self.update_target_url_input.setPlaceholderText("Auto-suggestion will appear here, or paste your own URL...")
+        self.update_target_url_input.setStyleSheet("""
+            QLineEdit {
+                padding: 10px 12px;
+                border: 1px solid #e9d5ff;
+                border-radius: 8px;
+                background-color: #ffffff;
+                font-size: 13px;
+                font-family: 'SF Mono', 'Consolas', monospace;
+            }
+            QLineEdit:focus {
+                border: 2px solid #a855f7;
+                padding: 9px 11px;
+            }
+        """)
+        target_input_layout.addWidget(self.update_target_url_input, 1)
+
+        self.update_paste_btn = QPushButton("Paste")
+        self.update_paste_btn.setObjectName("secondaryBtn")
+        self.update_paste_btn.clicked.connect(self.paste_update_url)
+        target_input_layout.addWidget(self.update_paste_btn)
+
+        update_mode_layout.addLayout(target_input_layout)
+
+        # Confirm button
+        confirm_layout = QHBoxLayout()
+        confirm_layout.addStretch()
+
+        self.update_confirm_btn = QPushButton("Confirm & Ready to Write")
+        self.update_confirm_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #a855f7, stop:1 #9333ea);
+                color: white;
+                font-weight: 600;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-size: 14px;
+                min-width: 180px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #9333ea, stop:1 #7e22ce);
+            }
+            QPushButton:disabled {
+                background: #d4d4d4;
+                color: #737373;
+            }
+        """)
+        self.update_confirm_btn.setEnabled(False)
+        self.update_confirm_btn.clicked.connect(self.confirm_update_write)
+        confirm_layout.addWidget(self.update_confirm_btn)
+
+        self.update_cancel_btn = QPushButton("Cancel")
+        self.update_cancel_btn.setObjectName("secondaryBtn")
+        self.update_cancel_btn.clicked.connect(self.cancel_update)
+        self.update_cancel_btn.setVisible(False)
+        confirm_layout.addWidget(self.update_cancel_btn)
+
+        confirm_layout.addStretch()
+        update_mode_layout.addLayout(confirm_layout)
+
+        self.update_mode_frame.setVisible(False)  # Hidden by default
+        main_layout.addWidget(self.update_mode_frame)
+
         # Control panel
         control_group = QGroupBox("Controls")
         control_layout = QVBoxLayout()
@@ -504,17 +628,17 @@ class NFCGui(QMainWindow):
         self.read_btn.clicked.connect(self.set_read_mode)
         mode_layout.addWidget(self.read_btn)
 
-        self.copy_url_btn = QPushButton("Copy URL Mode")
-        self.copy_url_btn.setObjectName("copyUrlBtn")
-        self.copy_url_btn.setToolTip("Switch to copy URL mode - copies scanned URLs to clipboard without opening (Ctrl+Shift+R)")
-        self.copy_url_btn.clicked.connect(self.set_copy_url_mode)
-        mode_layout.addWidget(self.copy_url_btn)
-
         self.write_btn = QPushButton("Write Mode")
         self.write_btn.setObjectName("writeBtn")
         self.write_btn.setToolTip("Switch to write mode - write URLs to NFC tags (Ctrl+W)")
         self.write_btn.clicked.connect(self.set_write_mode)
         mode_layout.addWidget(self.write_btn)
+
+        self.copy_url_btn = QPushButton("Copy URL Mode")
+        self.copy_url_btn.setObjectName("copyUrlBtn")
+        self.copy_url_btn.setToolTip("Switch to copy URL mode - copies scanned URLs to clipboard without opening (Ctrl+Shift+R)")
+        self.copy_url_btn.clicked.connect(self.set_copy_url_mode)
+        mode_layout.addWidget(self.copy_url_btn)
 
         self.update_btn = QPushButton("Update Mode")
         self.update_btn.setObjectName("updateBtn")
@@ -714,7 +838,9 @@ class NFCGui(QMainWindow):
                     write_callback=lambda msg: self.signals.tag_written.emit(msg),
                     update_callback=lambda old, new, success: self.signals.tag_updated.emit(old, new, success),
                     log_callback=lambda msg, level="info": self.signals.log_message.emit(msg, level),
-                    outdated_callback=lambda old, new: self.signals.outdated_detected.emit(old, new)
+                    outdated_callback=lambda old, new: self.signals.outdated_detected.emit(old, new),
+                    update_scan_callback=lambda orig, sugg: self.signals.update_tag_scanned.emit(orig, sugg),
+                    locked_tag_callback=lambda url: self.signals.locked_tag_with_url.emit(url)
                 )
 
                 # Start in read mode
@@ -737,12 +863,14 @@ class NFCGui(QMainWindow):
         self.read_mode_type = "default"
         self.nfc_handler.set_read_mode()
         self.log_message("Ready to read - present NFC tag")
-        self.status_label.setText("READ MODE")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
 
-        # Hide write-mode controls and URL display
+        # Update mode indicator (red underline on active button)
+        self._update_mode_indicator(self.read_btn)
+
+        # Hide write-mode controls and other mode displays
         self._toggle_write_controls(False)
         self.url_display_frame.setVisible(False)
+        self.update_mode_frame.setVisible(False)
 
         self._play_tts("read_mode")
 
@@ -752,12 +880,14 @@ class NFCGui(QMainWindow):
         self.read_mode_type = "copy_url"
         self.nfc_handler.set_read_mode()
         self.log_message("Copy URL mode - present NFC tag to copy URL")
-        self.status_label.setText("COPY URL MODE")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #06b6d4, stop:1 #0891b2); color: white;")
 
-        # Hide write-mode controls, show URL display
+        # Update mode indicator (red underline on active button)
+        self._update_mode_indicator(self.copy_url_btn)
+
+        # Hide write-mode controls and update mode, show URL display
         self._toggle_write_controls(False)
         self.url_display_frame.setVisible(True)
+        self.update_mode_frame.setVisible(False)
         self.copied_url_display.setText("Present a tag to copy its URL")
 
         self._play_tts("copy_url_mode")
@@ -765,12 +895,14 @@ class NFCGui(QMainWindow):
     def set_write_mode(self):
         """Switch to write mode"""
         self.current_mode = "write"
-        self.status_label.setText("WRITE MODE")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3b82f6, stop:1 #2563eb); color: white;")
 
-        # Show write-mode controls, hide URL display
+        # Update mode indicator (red underline on active button)
+        self._update_mode_indicator(self.write_btn)
+
+        # Show write-mode controls, hide other mode displays
         self._toggle_write_controls(True)
         self.url_display_frame.setVisible(False)
+        self.update_mode_frame.setVisible(False)
 
         # Auto-focus URL input for quick workflow
         self.url_input.setFocus()
@@ -795,22 +927,26 @@ class NFCGui(QMainWindow):
         self._play_tts("ready_to_write")
 
     def set_update_mode(self):
-        """Switch to update mode - two-step: scan old tag, then write to new tag"""
+        """Switch to update mode - interactive: scan tag, edit/confirm URL, write to new tag"""
         self.current_mode = "update"
         self.nfc_handler.set_update_mode()
 
-        # Check if settings are configured
-        if not self.settings.is_configured():
-            self.log_message("Configure rewrite settings first", "warning")
-        else:
-            self.log_message("Step 1: Scan tag with old URL pattern")
+        self.log_message("Present a tag to scan its URL")
 
-        self.status_label.setText("UPDATE MODE")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a855f7, stop:1 #9333ea); color: white;")
+        # Update mode indicator (red underline on active button)
+        self._update_mode_indicator(self.update_btn)
 
-        # Hide write-mode controls and URL display (update mode doesn't need URL input)
+        # Hide write-mode controls and copy URL display
         self._toggle_write_controls(False)
         self.url_display_frame.setVisible(False)
+
+        # Show update mode frame and reset its state
+        self.update_mode_frame.setVisible(True)
+        self.update_original_url_display.setText("Present a tag to scan")
+        self.update_target_url_input.clear()
+        self.update_target_url_input.setEnabled(False)
+        self.update_confirm_btn.setEnabled(False)
+        self.update_cancel_btn.setVisible(False)
 
         self._play_tts("update_mode")
 
@@ -839,6 +975,93 @@ class NFCGui(QMainWindow):
         # Batch controls
         self.batch_label.setVisible(visible)
         self.batch_spinbox.setVisible(visible)
+
+    def _update_mode_indicator(self, active_button):
+        """Update the red underline indicator on mode buttons"""
+        # Define base styles for each button (without underline)
+        button_styles = {
+            self.read_btn: """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #22c55e, stop:1 #16a34a);
+                    color: white;
+                    min-width: 140px;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    border: none;
+                    %s
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #16a34a, stop:1 #15803d);
+                }
+            """,
+            self.write_btn: """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #3b82f6, stop:1 #2563eb);
+                    color: white;
+                    min-width: 140px;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    border: none;
+                    %s
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #2563eb, stop:1 #1d4ed8);
+                }
+            """,
+            self.copy_url_btn: """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #06b6d4, stop:1 #0891b2);
+                    color: white;
+                    min-width: 140px;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    border: none;
+                    %s
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #0891b2, stop:1 #0e7490);
+                }
+            """,
+            self.update_btn: """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #a855f7, stop:1 #9333ea);
+                    color: white;
+                    min-width: 140px;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 13px;
+                    border: none;
+                    %s
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #9333ea, stop:1 #7e22ce);
+                }
+            """
+        }
+
+        # Red underline style
+        underline = "border-bottom: 3px solid #ef4444;"
+
+        for btn, style_template in button_styles.items():
+            if btn == active_button:
+                btn.setStyleSheet(style_template % underline)
+            else:
+                btn.setStyleSheet(style_template % "")
 
     def paste_url(self):
         """Paste URL from clipboard and prepare for writing"""
@@ -1043,9 +1266,14 @@ class NFCGui(QMainWindow):
             self._play_beep("write")  # Two-tone beep for update success
             self._play_tts("tag_updated")  # Voice announcement
 
-            # Reset status back to waiting for old tag
-            self.status_label.setText("UPDATE MODE")
-            self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a855f7, stop:1 #9333ea); color: white;")
+            # Reset UI for next update
+            self.status_label.setText("Connected")
+            self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
+            self.update_original_url_display.setText("Present a tag to scan")
+            self.update_target_url_input.clear()
+            self.update_target_url_input.setEnabled(False)
+            self.update_confirm_btn.setEnabled(False)
+            self.update_cancel_btn.setVisible(False)
         else:
             if old_url == new_url:
                 # URL didn't need rewriting (scanned in step 1)
@@ -1055,6 +1283,101 @@ class NFCGui(QMainWindow):
                 self.log_message("Update failed", "error")
                 self._play_beep("error")
                 self._play_tts("update_failed")
+
+    @pyqtSlot(str, str)
+    def on_update_tag_scanned(self, original_url, suggested_url):
+        """Handle tag scanned in update mode (interactive workflow)"""
+        self._play_beep("read")  # Acknowledge the scan
+
+        # Display the original URL
+        self.update_original_url_display.setText(original_url)
+
+        # Pre-populate target input with suggestion (if available)
+        if suggested_url:
+            self.update_target_url_input.setText(suggested_url)
+            self.log_message("URL matched - suggestion ready, edit or confirm", "success")
+            self._play_tts("url_validated")
+        else:
+            self.update_target_url_input.clear()
+            self.log_message("No pattern match - paste your target URL", "warning")
+
+        # Enable editing and confirm button
+        self.update_target_url_input.setEnabled(True)
+        self.update_target_url_input.setFocus()
+        self.update_confirm_btn.setEnabled(True)
+        self.update_cancel_btn.setVisible(True)
+
+    @pyqtSlot(str)
+    def on_locked_tag_with_url(self, url):
+        """Handle locked tag with URL detected in write mode"""
+        # Check if the setting is enabled
+        if not self.settings.open_locked_tag_url:
+            return
+
+        # Store the URL
+        self.last_url = url
+
+        # Open in browser
+        self._open_in_browser(url)
+
+        # Switch to read mode
+        self.set_read_mode()
+        self.log_message(f"Opened locked tag URL - switched to read mode", "info")
+
+    def paste_update_url(self):
+        """Paste URL from clipboard into update target input"""
+        try:
+            clipboard_content = pyperclip.paste().strip()
+            if clipboard_content:
+                self.update_target_url_input.setText(clipboard_content)
+                self.update_target_url_input.setFocus()
+            else:
+                self.log_message("Clipboard is empty", "warning")
+        except Exception as e:
+            self.log_message("Failed to paste from clipboard", "error")
+
+    def confirm_update_write(self):
+        """Confirm the target URL and prepare to write to new tag"""
+        target_url = self.update_target_url_input.text().strip()
+
+        if not target_url:
+            self.log_message("Enter a target URL first", "warning")
+            return
+
+        # Add https:// if not present
+        if not target_url.startswith(('http://', 'https://')):
+            target_url = 'https://' + target_url
+            self.update_target_url_input.setText(target_url)
+
+        # Store the confirmed URL and advance handler to write step
+        original_url = self.update_original_url_display.text()
+        self.nfc_handler.pending_original_url = original_url
+        self.nfc_handler.pending_rewrite_url = target_url
+        self.nfc_handler.update_step = "write_new"
+
+        # Update UI to show we're ready for new tag
+        self.status_label.setText("PRESENT NEW TAG")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f97316, stop:1 #ea580c); color: white;")
+        self.log_message("Present a blank tag to write", "info")
+        self._play_tts("present_tag")
+
+        # Disable further editing until write completes or cancel
+        self.update_target_url_input.setEnabled(False)
+        self.update_confirm_btn.setEnabled(False)
+
+    def cancel_update(self):
+        """Cancel the pending update operation"""
+        self.nfc_handler.cancel_pending_update()
+
+        # Reset UI
+        self.status_label.setText("Connected")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
+        self.update_original_url_display.setText("Present a tag to scan")
+        self.update_target_url_input.clear()
+        self.update_target_url_input.setEnabled(False)
+        self.update_confirm_btn.setEnabled(False)
+        self.update_cancel_btn.setVisible(False)
+        self.log_message("Update cancelled - present a tag to scan")
 
     def copy_last_url(self):
         """Copy last URL to clipboard"""
