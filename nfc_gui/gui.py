@@ -24,6 +24,7 @@ class NFCSignals(QObject):
     tag_read = pyqtSignal(str)  # URL read from tag
     tag_written = pyqtSignal(str)  # Message about write completion
     tag_updated = pyqtSignal(str, str, bool)  # old_url, new_url, success
+    outdated_detected = pyqtSignal(str, str)  # old_url, new_url (when old tag scanned in update mode)
     log_message = pyqtSignal(str, str)  # message, level
 
 
@@ -223,6 +224,7 @@ class NFCGui(QMainWindow):
         self.signals.tag_read.connect(self.on_tag_read)
         self.signals.tag_written.connect(self.on_tag_written)
         self.signals.tag_updated.connect(self.on_tag_updated)
+        self.signals.outdated_detected.connect(self.on_outdated_detected)
         self.signals.log_message.connect(self.log_message)
 
         # NFC Handler with settings
@@ -242,7 +244,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.3.0")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.0")
         self.setGeometry(100, 100, 800, 500)
 
         # Set modern stylesheet
@@ -573,7 +575,8 @@ class NFCGui(QMainWindow):
                     read_callback=lambda url: self.signals.tag_read.emit(url),
                     write_callback=lambda msg: self.signals.tag_written.emit(msg),
                     update_callback=lambda old, new, success: self.signals.tag_updated.emit(old, new, success),
-                    log_callback=lambda msg, level="info": self.signals.log_message.emit(msg, level)
+                    log_callback=lambda msg, level="info": self.signals.log_message.emit(msg, level),
+                    outdated_callback=lambda old, new: self.signals.outdated_detected.emit(old, new)
                 )
 
                 # Start in read mode
@@ -620,7 +623,7 @@ class NFCGui(QMainWindow):
         self._play_tts("ready_to_write")
 
     def set_update_mode(self):
-        """Switch to update mode - rewrites old local URLs to new public format"""
+        """Switch to update mode - two-step: scan old tag, then write to new tag"""
         self.current_mode = "update"
         self.nfc_handler.set_update_mode()
 
@@ -628,9 +631,9 @@ class NFCGui(QMainWindow):
         if not self.settings.is_configured():
             self.log_message("Configure rewrite settings first", "warning")
         else:
-            self.log_message("Ready to update - present tags to migrate URLs")
+            self.log_message("Step 1: Scan tag with old URL pattern")
 
-        self.status_label.setText("Status: Connected - UPDATE MODE")
+        self.status_label.setText("Status: UPDATE - Scan old tag")
         self.status_label.setStyleSheet("background-color: #9C27B0; color: white;")
 
         # Hide write-mode controls (update mode doesn't need URL input)
@@ -704,13 +707,17 @@ class NFCGui(QMainWindow):
         self.nfc_handler.batch_count = 0
         self.nfc_handler.batch_total = batch_count
 
+        # Play TTS sequence: "URL Validated" -> pause -> "Present Tag"
+        self._play_tts("url_validated")
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(1200, lambda: self._play_tts("present_tag"))
+
         # Show/update progress indicator for batch operations
         if batch_count > 1:
             self.progress_group.setVisible(True)
             self.progress_label.setText(f"Tag 0 of {batch_count}")
             self.progress_bar.setValue(0)
             self.log_message(f"Present tag 1 of {batch_count}")
-            self._play_tts("batch_started")  # Voice announcement for batch start
         else:
             self.progress_group.setVisible(False)
             self.log_message("Present tag to write")
@@ -769,18 +776,33 @@ class NFCGui(QMainWindow):
                 self._play_tts("batch_finished")  # Voice announcement for batch complete
                 QMessageBox.information(self, "Success", f"Successfully wrote {self.nfc_handler.batch_total} tags")
 
+    @pyqtSlot(str, str)
+    def on_outdated_detected(self, old_url, new_url):
+        """Handle outdated tag detected event (step 1 of update mode)"""
+        self._play_beep("read")  # Acknowledge the scan
+        self._play_tts("outdated_tag_detected")  # Voice announcement
+        self.log_message("Outdated tag detected - present new blank tag", "success")
+
+        # Update status to show we're waiting for a new tag
+        self.status_label.setText("Status: UPDATE - Present NEW blank tag")
+        self.status_label.setStyleSheet("background-color: #FF9800; color: white;")  # Orange for waiting
+
     @pyqtSlot(str, str, bool)
     def on_tag_updated(self, old_url, new_url, success):
         """Handle tag update event (thread-safe slot)"""
         if success:
             self.last_url = new_url
-            self.log_message("Tag updated and locked", "success")
+            self.log_message("New tag written and locked", "success")
             self._play_beep("write")  # Two-tone beep for update success
             self._play_tts("tag_updated")  # Voice announcement
+
+            # Reset status back to waiting for old tag
+            self.status_label.setText("Status: UPDATE - Scan old tag")
+            self.status_label.setStyleSheet("background-color: #9C27B0; color: white;")
         else:
             if old_url == new_url:
-                # URL didn't need rewriting
-                self.log_message("Tag already up to date", "warning")
+                # URL didn't need rewriting (scanned in step 1)
+                self.log_message("Tag doesn't match old URL pattern", "warning")
                 self._play_tts("tag_up_to_date")
             else:
                 self.log_message("Update failed", "error")

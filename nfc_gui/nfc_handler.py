@@ -34,6 +34,11 @@ class NFCHandler:
         self.last_read_time = 0  # Timestamp of last successful read
         self.read_cooldown = 3.0  # Cooldown period in seconds
         self.settings = settings  # Settings object for URL rewriting
+        # Update mode state (two-step workflow)
+        self.update_step = "scan_old"  # "scan_old" or "write_new"
+        self.pending_rewrite_url = None  # URL to write after scanning old tag
+        self.pending_original_url = None  # Original URL from old tag
+        self.outdated_callback = None  # Callback for outdated tag detected
 
     def initialize_reader(self) -> bool:
         """Initialize the NFC reader connection"""
@@ -213,7 +218,8 @@ class NFCHandler:
             return False
 
     def start_monitoring(self, read_callback: Callable = None, write_callback: Callable = None,
-                         update_callback: Callable = None, log_callback: Callable = None):
+                         update_callback: Callable = None, log_callback: Callable = None,
+                         outdated_callback: Callable = None):
         """Start monitoring for NFC tags"""
         if self.is_monitoring:
             return
@@ -222,6 +228,7 @@ class NFCHandler:
         self.write_callback = write_callback
         self.update_callback = update_callback
         self.log_callback = log_callback
+        self.outdated_callback = outdated_callback
 
         if not self.initialize_reader():
             if self.log_callback:
@@ -259,11 +266,21 @@ class NFCHandler:
         self.lock_tags = False
 
     def set_update_mode(self):
-        """Set update mode - reads tag, rewrites URL, writes back and locks"""
+        """Set update mode - two-step workflow: scan old tag, then write to new tag"""
         self.mode = "update"
         self.url_to_write = None
         self.lock_tags = True  # Always lock after update
-        self.allow_overwrite = True  # Must overwrite for update to work
+        self.allow_overwrite = False  # Don't overwrite - we want to write to blank tags
+        # Reset update workflow state
+        self.update_step = "scan_old"
+        self.pending_rewrite_url = None
+        self.pending_original_url = None
+
+    def cancel_pending_update(self):
+        """Cancel pending update and reset to scan_old step"""
+        self.update_step = "scan_old"
+        self.pending_rewrite_url = None
+        self.pending_original_url = None
 
 
 class NFCObserver(CardObserver):
@@ -362,63 +379,105 @@ class NFCObserver(CardObserver):
                 self.nfc_handler.log_callback("Write error", "error")
 
     def handle_update_mode(self, connection):
-        """Handle update mode: read tag, rewrite URL, write back and lock"""
-        # Step 1: Read the existing URL from the tag
-        try:
-            existing_url = self.nfc_handler.read_ndef_message(connection)
-        except Exception:
-            if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("Failed to read tag", "error")
-            return
+        """Handle update mode: two-step workflow - scan old tag, then write to new tag"""
+        handler = self.nfc_handler
 
-        if not existing_url:
-            if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("Empty tag - nothing to update", "warning")
-            return
+        if handler.update_step == "scan_old":
+            # STEP 1: Scan old tag with outdated URL
+            try:
+                existing_url = handler.read_ndef_message(connection)
+            except Exception:
+                if handler.log_callback:
+                    handler.log_callback("Failed to read tag", "error")
+                return
 
-        # Step 2: Apply URL rewriting using settings
-        if not self.nfc_handler.settings:
-            if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("Configure rewrite settings first", "error")
-            return
+            if not existing_url:
+                if handler.log_callback:
+                    handler.log_callback("Empty tag - scan a tag with old URL", "warning")
+                return
 
-        new_url, was_rewritten = self.nfc_handler.settings.rewrite_url(existing_url)
+            # Check settings are configured
+            if not handler.settings:
+                if handler.log_callback:
+                    handler.log_callback("Configure rewrite settings first", "error")
+                return
 
-        if not was_rewritten:
-            if self.nfc_handler.update_callback:
-                self.nfc_handler.update_callback(existing_url, existing_url, False)
-            return
+            # Apply URL rewriting
+            new_url, was_rewritten = handler.settings.rewrite_url(existing_url)
 
-        # Step 3: Write the new URL back to the tag
-        try:
-            ndef_message = self.nfc_handler.create_ndef_record(new_url)
+            if not was_rewritten:
+                # URL doesn't match old pattern - not outdated
+                if handler.log_callback:
+                    handler.log_callback("Tag URL doesn't match old pattern", "warning")
+                if handler.update_callback:
+                    handler.update_callback(existing_url, existing_url, False)
+                return
 
-            if self.nfc_handler.write_ndef_message(connection, ndef_message):
-                # Step 4: Lock the tag
-                self.nfc_handler.lock_tag_permanently(connection)
+            # Outdated tag detected! Store the rewritten URL and advance to next step
+            handler.pending_original_url = existing_url
+            handler.pending_rewrite_url = new_url
+            handler.update_step = "write_new"
 
-                if self.nfc_handler.update_callback:
-                    self.nfc_handler.update_callback(existing_url, new_url, True)
+            if handler.outdated_callback:
+                handler.outdated_callback(existing_url, new_url)
 
-                self.nfc_handler.cards_processed += 1
+        elif handler.update_step == "write_new":
+            # STEP 2: Write rewritten URL to new blank tag
+            if not handler.pending_rewrite_url:
+                if handler.log_callback:
+                    handler.log_callback("No pending URL - scan old tag first", "error")
+                handler.update_step = "scan_old"
+                return
 
-                # Handle batch updating
-                if self.nfc_handler.batch_total > 1:
-                    self.nfc_handler.batch_count += 1
-                    if self.nfc_handler.batch_count < self.nfc_handler.batch_total:
-                        if self.nfc_handler.log_callback:
-                            self.nfc_handler.log_callback(
-                                f"Present next tag ({self.nfc_handler.batch_count + 1}/{self.nfc_handler.batch_total})",
-                                "info"
-                            )
-            else:
-                if self.nfc_handler.log_callback:
-                    self.nfc_handler.log_callback("Update failed", "error")
-                if self.nfc_handler.update_callback:
-                    self.nfc_handler.update_callback(existing_url, new_url, False)
+            # Check if tag already has data (we want a blank tag)
+            try:
+                existing = handler.read_ndef_message(connection)
+            except Exception:
+                existing = None
 
-        except Exception:
-            if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("Update error", "error")
-            if self.nfc_handler.update_callback:
-                self.nfc_handler.update_callback(existing_url, new_url, False)
+            if existing:
+                if handler.log_callback:
+                    handler.log_callback("Tag has data - use blank tag", "warning")
+                return
+
+            # Write the rewritten URL to the new tag
+            try:
+                ndef_message = handler.create_ndef_record(handler.pending_rewrite_url)
+
+                if handler.write_ndef_message(connection, ndef_message):
+                    # Lock the tag
+                    handler.lock_tag_permanently(connection)
+
+                    if handler.update_callback:
+                        handler.update_callback(
+                            handler.pending_original_url,
+                            handler.pending_rewrite_url,
+                            True
+                        )
+
+                    handler.cards_processed += 1
+
+                    # Reset for next update
+                    handler.update_step = "scan_old"
+                    handler.pending_rewrite_url = None
+                    handler.pending_original_url = None
+
+                else:
+                    if handler.log_callback:
+                        handler.log_callback("Write failed", "error")
+                    if handler.update_callback:
+                        handler.update_callback(
+                            handler.pending_original_url,
+                            handler.pending_rewrite_url,
+                            False
+                        )
+
+            except Exception:
+                if handler.log_callback:
+                    handler.log_callback("Write error", "error")
+                if handler.update_callback:
+                    handler.update_callback(
+                        handler.pending_original_url,
+                        handler.pending_rewrite_url,
+                        False
+                    )
