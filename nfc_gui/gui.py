@@ -34,6 +34,7 @@ class SettingsDialog(QWidget):
         super().__init__(parent)
         self.settings = settings
         self.reader_info = reader_info
+        self.parent_window = parent
         self.setWindowTitle("Settings")
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setMinimumWidth(500)
@@ -56,6 +57,24 @@ class SettingsDialog(QWidget):
 
             reader_group.setLayout(reader_layout)
             layout.addWidget(reader_group)
+
+        # Voice announcements section
+        voice_group = QGroupBox("Voice Announcements")
+        voice_layout = QVBoxLayout()
+
+        self.tts_checkbox = QCheckBox("Enable voice announcements (British accent)")
+        self.tts_checkbox.setChecked(self.settings.tts_enabled)
+        self.tts_checkbox.setToolTip("Announce events like 'Tag opened', 'Batch finished' etc.")
+        voice_layout.addWidget(self.tts_checkbox)
+
+        # Test button
+        test_voice_btn = QPushButton("Test Voice")
+        test_voice_btn.setMaximumWidth(120)
+        test_voice_btn.clicked.connect(self.test_voice)
+        voice_layout.addWidget(test_voice_btn)
+
+        voice_group.setLayout(voice_layout)
+        layout.addWidget(voice_group)
 
         # Source pattern section
         pattern_group = QGroupBox("Source URL Pattern (regex)")
@@ -161,6 +180,11 @@ class SettingsDialog(QWidget):
             self.result_label.setText(f"Invalid regex: {e}")
             self.result_label.setStyleSheet("color: #f44336;")
 
+    def test_voice(self):
+        """Play a test voice announcement."""
+        if self.parent_window:
+            self.parent_window._play_tts("tag_opened")
+
     def save_settings(self):
         """Save settings and close dialog."""
         pattern = self.pattern_input.text().strip()
@@ -179,6 +203,7 @@ class SettingsDialog(QWidget):
             return
 
         self.settings.set_rewrite_rule(pattern, target)
+        self.settings.tts_enabled = self.tts_checkbox.isChecked()
         if self.settings.save():
             QMessageBox.information(self, "Success", "Settings saved successfully")
             self.close()
@@ -217,7 +242,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.1.0")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.3.0")
         self.setGeometry(100, 100, 800, 500)
 
         # Set modern stylesheet
@@ -668,6 +693,7 @@ class NFCGui(QMainWindow):
             self.progress_label.setText(f"Tag 0 of {batch_count}")
             self.progress_bar.setValue(0)
             self.log_message(f"Present tag 1 of {batch_count}")
+            self._play_tts("batch_started")  # Voice announcement for batch start
         else:
             self.progress_group.setVisible(False)
             self.log_message("Present tag to write")
@@ -678,6 +704,7 @@ class NFCGui(QMainWindow):
         self.last_url = url
         self.log_message("Tag read - opened in browser", "success")
         self._play_beep("read")  # Short beep for successful read
+        self._play_tts("tag_opened")  # Voice announcement
 
         # Copy to clipboard
         try:
@@ -698,6 +725,7 @@ class NFCGui(QMainWindow):
                 self.log_message("Tag written and locked", "success")
             else:
                 self.log_message("Tag written", "success")
+            self._play_tts("tag_written")  # Voice announcement
         else:
             self.log_message("Write failed", "error")
 
@@ -715,6 +743,7 @@ class NFCGui(QMainWindow):
             else:
                 self.log_message("All tags written", "success")
                 self.progress_group.setVisible(False)  # Hide progress after completion
+                self._play_tts("batch_finished")  # Voice announcement for batch complete
                 QMessageBox.information(self, "Success", f"Successfully wrote {self.nfc_handler.batch_total} tags")
 
     @pyqtSlot(str, str, bool)
@@ -724,6 +753,7 @@ class NFCGui(QMainWindow):
             self.last_url = new_url
             self.log_message("Tag updated and locked", "success")
             self._play_beep("write")  # Two-tone beep for update success
+            self._play_tts("tag_updated")  # Voice announcement
         else:
             if old_url == new_url:
                 # URL didn't need rewriting
@@ -793,6 +823,25 @@ class NFCGui(QMainWindow):
                 sound = "/usr/share/sounds/freedesktop/stereo/dialog-error.oga"
                 if os.path.exists(sound):
                     subprocess.Popen(['paplay', sound], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+    def _play_tts(self, announcement: str):
+        """Play a TTS voice announcement
+
+        Args:
+            announcement: One of "tag_opened", "tag_written", "batch_started", "batch_finished"
+        """
+        if not self.settings.tts_enabled:
+            return
+
+        try:
+            # Get the sounds directory relative to this module
+            sounds_dir = os.path.join(os.path.dirname(__file__), 'sounds')
+            sound_file = os.path.join(sounds_dir, f"{announcement}.ogg")
+
+            if os.path.exists(sound_file):
+                subprocess.Popen(['paplay', sound_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 
@@ -900,6 +949,7 @@ class NFCGui(QMainWindow):
                 3000
             )
             self.log_message("Background mode active", "success")
+            self._play_tts("background_mode")  # Voice announcement
         else:
             # Disable background read mode
             self.tray_icon.setToolTip("NFC Reader/Writer - Ready")
@@ -919,9 +969,12 @@ class NFCGui(QMainWindow):
                                      QMessageBox.No)
 
         if reply == QMessageBox.Yes:
+            self._play_tts("closing")  # Farewell announcement
             self.nfc_handler.stop_monitoring()
             self.tray_icon.hide()
-            QApplication.quit()
+            # Brief delay to let the TTS play
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(1500, QApplication.quit)
 
     def closeEvent(self, event):
         """Handle window close event - minimize to tray instead of closing"""
