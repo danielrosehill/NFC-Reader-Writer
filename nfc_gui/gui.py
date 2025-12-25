@@ -15,7 +15,6 @@ from PyQt5.QtGui import QFont, QIcon, QPixmap
 import pyperclip
 import subprocess
 import os
-from datetime import datetime
 from .nfc_handler import NFCHandler
 from .settings import Settings
 
@@ -29,12 +28,13 @@ class NFCSignals(QObject):
 
 
 class SettingsDialog(QWidget):
-    """Settings dialog for configuring URL rewrite rules."""
+    """Settings dialog for configuring URL rewrite rules and showing reader info."""
 
-    def __init__(self, settings: Settings, parent=None):
+    def __init__(self, settings: Settings, reader_info: str = None, parent=None):
         super().__init__(parent)
         self.settings = settings
-        self.setWindowTitle("URL Rewrite Settings")
+        self.reader_info = reader_info
+        self.setWindowTitle("Settings")
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
         self.setMinimumWidth(500)
         self.init_ui()
@@ -43,6 +43,19 @@ class SettingsDialog(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(20, 20, 20, 20)
+
+        # Reader info section
+        if self.reader_info:
+            reader_group = QGroupBox("Connected Reader")
+            reader_layout = QVBoxLayout()
+
+            reader_label = QLabel(self.reader_info)
+            reader_label.setStyleSheet("font-family: monospace; color: #333;")
+            reader_label.setWordWrap(True)
+            reader_layout.addWidget(reader_label)
+
+            reader_group.setLayout(reader_layout)
+            layout.addWidget(reader_group)
 
         # Source pattern section
         pattern_group = QGroupBox("Source URL Pattern (regex)")
@@ -205,7 +218,7 @@ class NFCGui(QMainWindow):
     def init_ui(self):
         """Initialize the user interface"""
         self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.0.0")
-        self.setGeometry(100, 100, 900, 700)
+        self.setGeometry(100, 100, 800, 500)
 
         # Set modern stylesheet
         self.setStyleSheet("""
@@ -443,26 +456,24 @@ class NFCGui(QMainWindow):
         main_layout.addWidget(self.progress_group)
         self.progress_group.setVisible(False)  # Hidden by default
 
-        # Log area (compact for diagnostics/monitoring)
-        log_group = QGroupBox("Activity Log")
-        log_layout = QVBoxLayout()
-
-        self.log_text = QTextEdit()
-        self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(200)  # Compact size for diagnostics
-        log_layout.addWidget(self.log_text)
-
-        log_group.setLayout(log_layout)
-        main_layout.addWidget(log_group)
+        # Simple status message area (replacing verbose activity log)
+        self.status_message = QLabel("Ready - present an NFC tag")
+        self.status_message.setAlignment(Qt.AlignCenter)
+        self.status_message.setStyleSheet("""
+            QLabel {
+                padding: 20px;
+                font-size: 16px;
+                color: #333;
+                background-color: #f0f0f0;
+                border-radius: 8px;
+                border: 1px solid #ddd;
+            }
+        """)
+        self.status_message.setMinimumHeight(80)
+        main_layout.addWidget(self.status_message)
 
         # Bottom buttons
         bottom_layout = QHBoxLayout()
-
-        clear_btn = QPushButton("Clear Log")
-        clear_btn.setObjectName("secondaryBtn")
-        clear_btn.setToolTip("Clear the activity log")
-        clear_btn.clicked.connect(self.clear_log)
-        bottom_layout.addWidget(clear_btn)
 
         copy_btn = QPushButton("Copy Last URL")
         copy_btn.setObjectName("secondaryBtn")
@@ -487,26 +498,32 @@ class NFCGui(QMainWindow):
         main_layout.addLayout(bottom_layout)
 
     def log_message(self, message, level="info"):
-        """Log a message with timestamp and color coding
+        """Update status message with color coding
 
         Args:
-            message: The message to log
+            message: The message to display
             level: One of 'success', 'error', 'warning', 'info'
         """
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        # Color mapping
-        colors = {
-            'success': '#4CAF50',  # Green
-            'error': '#f44336',    # Red
-            'warning': '#ff9800',  # Orange
-            'info': '#2196F3'      # Blue
+        # Color and background mapping
+        styles = {
+            'success': ('color: #2e7d32; background-color: #e8f5e9;', '#4CAF50'),
+            'error': ('color: #c62828; background-color: #ffebee;', '#f44336'),
+            'warning': ('color: #ef6c00; background-color: #fff3e0;', '#ff9800'),
+            'info': ('color: #1565c0; background-color: #e3f2fd;', '#2196F3')
         }
 
-        color = colors.get(level, colors['info'])
+        style, border_color = styles.get(level, styles['info'])
 
-        # Insert colored log entry
-        self.log_text.append(f'<span style="color: {color};">[{timestamp}] {message}</span>')
+        self.status_message.setStyleSheet(f"""
+            QLabel {{
+                padding: 20px;
+                font-size: 16px;
+                {style}
+                border-radius: 8px;
+                border: 2px solid {border_color};
+            }}
+        """)
+        self.status_message.setText(message)
 
     def initialize_nfc(self):
         """Initialize NFC reader"""
@@ -514,7 +531,7 @@ class NFCGui(QMainWindow):
             if self.nfc_handler.initialize_reader():
                 self.status_label.setText(f"Status: Connected - {self.nfc_handler.reader}")
                 self.status_label.setStyleSheet("background-color: #4CAF50; color: white;")
-                self.log_message(f"NFC Reader initialized: {self.nfc_handler.reader}", "success")
+                self.log_message("Reader connected", "success")
 
                 # Start monitoring with signal emitters as callbacks (thread-safe)
                 self.nfc_handler.start_monitoring(
@@ -529,19 +546,19 @@ class NFCGui(QMainWindow):
             else:
                 self.status_label.setText("Status: No reader found")
                 self.status_label.setStyleSheet("background-color: #f44336; color: white;")
-                self.log_message("No NFC reader found. Please connect ACS ACR1252.", "error")
+                self.log_message("No NFC reader found", "error")
                 QMessageBox.critical(self, "Error", "No NFC reader found.\nPlease connect ACS ACR1252 USB reader.")
         except Exception as e:
             self.status_label.setText("Status: Error")
             self.status_label.setStyleSheet("background-color: #f44336; color: white;")
-            self.log_message(f"Error initializing reader: {e}", "error")
+            self.log_message("Failed to connect to reader", "error")
             QMessageBox.critical(self, "Error", f"Failed to initialize reader:\n{e}")
 
     def set_read_mode(self):
         """Switch to read mode"""
         self.current_mode = "read"
         self.nfc_handler.set_read_mode()
-        self.log_message("Switched to READ mode - Present NFC tag to read")
+        self.log_message("Ready to read - present NFC tag")
         self.status_label.setText("Status: Connected - READ MODE")
         self.status_label.setStyleSheet("background-color: #4CAF50; color: white;")
 
@@ -551,7 +568,7 @@ class NFCGui(QMainWindow):
     def set_write_mode(self):
         """Switch to write mode"""
         self.current_mode = "write"
-        self.log_message("Switched to WRITE mode - Enter URL and click 'Write Tag(s)'")
+        self.log_message("Ready to write - enter URL and present tag")
         self.status_label.setText("Status: Connected - WRITE MODE")
         self.status_label.setStyleSheet("background-color: #2196F3; color: white;")
 
@@ -569,12 +586,9 @@ class NFCGui(QMainWindow):
 
         # Check if settings are configured
         if not self.settings.is_configured():
-            self.log_message("Switched to UPDATE mode - Present tags to migrate URLs", "warning")
-            self.log_message("  Warning: Please configure rewrite settings first (click Settings button)", "warning")
+            self.log_message("Configure rewrite settings first", "warning")
         else:
-            self.log_message("Switched to UPDATE mode - Present tags to migrate old URLs to new format")
-            target = self.settings.target_base_url.rstrip('/') + '/...'
-            self.log_message(f"  Rewrites matching URLs to: {target}", "info")
+            self.log_message("Ready to update - present tags to migrate URLs")
 
         self.status_label.setText("Status: Connected - UPDATE MODE")
         self.status_label.setStyleSheet("background-color: #9C27B0; color: white;")
@@ -585,7 +599,9 @@ class NFCGui(QMainWindow):
     def open_settings(self):
         """Open the settings dialog"""
         if self.settings_dialog is None or not self.settings_dialog.isVisible():
-            self.settings_dialog = SettingsDialog(self.settings, self)
+            # Get reader info
+            reader_info = str(self.nfc_handler.reader) if self.nfc_handler.reader else "No reader connected"
+            self.settings_dialog = SettingsDialog(self.settings, reader_info, self)
             self.settings_dialog.show()
         else:
             self.settings_dialog.activateWindow()
@@ -613,12 +629,12 @@ class NFCGui(QMainWindow):
             clipboard_content = pyperclip.paste().strip()
             if clipboard_content:
                 self.url_input.setText(clipboard_content)
-                self.log_message(f"Pasted URL from clipboard: {clipboard_content}", "info")
+                self.log_message("URL pasted from clipboard", "info")
             else:
                 self.log_message("Clipboard is empty", "warning")
                 QMessageBox.warning(self, "Warning", "Clipboard is empty")
         except Exception as e:
-            self.log_message(f"Failed to paste from clipboard: {e}", "error")
+            self.log_message("Failed to paste from clipboard", "error")
             QMessageBox.critical(self, "Error", f"Failed to paste from clipboard:\n{e}")
 
     def write_tags(self):
@@ -651,19 +667,16 @@ class NFCGui(QMainWindow):
             self.progress_group.setVisible(True)
             self.progress_label.setText(f"Tag 0 of {batch_count}")
             self.progress_bar.setValue(0)
-            self.log_message(f"Batch write mode: {batch_count} tags", "info")
-            self.log_message(f"Writing URL: {url}", "info")
-            self.log_message(f"Present first NFC tag (1/{batch_count})...", "info")
+            self.log_message(f"Present tag 1 of {batch_count}")
         else:
             self.progress_group.setVisible(False)
-            self.log_message(f"Writing URL: {url}", "info")
-            self.log_message("Present NFC tag to write...", "info")
+            self.log_message("Present tag to write")
 
     @pyqtSlot(str)
     def on_tag_read(self, url):
         """Handle tag read event (thread-safe slot)"""
         self.last_url = url
-        self.log_message(f"Read: {url}", "success")
+        self.log_message("Tag read - opened in browser", "success")
         self._play_beep("read")  # Short beep for successful read
 
         # Copy to clipboard
@@ -679,8 +692,16 @@ class NFCGui(QMainWindow):
     def on_tag_written(self, message):
         """Handle tag write event (thread-safe slot)"""
         is_success = "Written" in message or "locked" in message.lower()
-        self.log_message(message, "success" if is_success else "error")
-        self._play_beep("write" if is_success else "error")  # Two-tone beep for write success
+
+        if is_success:
+            if "locked" in message.lower():
+                self.log_message("Tag written and locked", "success")
+            else:
+                self.log_message("Tag written", "success")
+        else:
+            self.log_message("Write failed", "error")
+
+        self._play_beep("write" if is_success else "error")
 
         # Update batch progress
         if self.nfc_handler.batch_total > 1:
@@ -690,9 +711,9 @@ class NFCGui(QMainWindow):
             self.progress_label.setText(f"Tag {self.nfc_handler.batch_count} of {self.nfc_handler.batch_total}")
 
             if self.nfc_handler.batch_count < self.nfc_handler.batch_total:
-                self.log_message(f"Present next tag ({self.nfc_handler.batch_count + 1}/{self.nfc_handler.batch_total})...", "info")
+                self.log_message(f"Present tag {self.nfc_handler.batch_count + 1} of {self.nfc_handler.batch_total}")
             else:
-                self.log_message("Batch writing completed!", "success")
+                self.log_message("All tags written", "success")
                 self.progress_group.setVisible(False)  # Hide progress after completion
                 QMessageBox.information(self, "Success", f"Successfully wrote {self.nfc_handler.batch_total} tags")
 
@@ -701,14 +722,14 @@ class NFCGui(QMainWindow):
         """Handle tag update event (thread-safe slot)"""
         if success:
             self.last_url = new_url
-            self.log_message(f"Tag updated successfully!", "success")
+            self.log_message("Tag updated and locked", "success")
             self._play_beep("write")  # Two-tone beep for update success
         else:
             if old_url == new_url:
                 # URL didn't need rewriting
-                self.log_message("Tag URL is already in the correct format", "warning")
+                self.log_message("Tag already up to date", "warning")
             else:
-                self.log_message(f"Failed to update tag", "error")
+                self.log_message("Update failed", "error")
                 self._play_beep("error")
 
     def copy_last_url(self):
@@ -716,9 +737,9 @@ class NFCGui(QMainWindow):
         if self.last_url:
             try:
                 pyperclip.copy(self.last_url)
-                self.log_message(f"Copied to clipboard: {self.last_url}", "success")
+                self.log_message("URL copied to clipboard", "success")
             except Exception as e:
-                self.log_message(f"Failed to copy to clipboard: {e}", "error")
+                self.log_message("Failed to copy to clipboard", "error")
                 QMessageBox.critical(self, "Error", f"Failed to copy to clipboard:\n{e}")
         else:
             self.log_message("No URL to copy - read a tag first", "warning")
@@ -730,11 +751,6 @@ class NFCGui(QMainWindow):
             self._open_in_browser(self.last_url)
         else:
             QMessageBox.warning(self, "Warning", "No URL to open - read a tag first")
-
-    def clear_log(self):
-        """Clear the log area"""
-        self.log_text.clear()
-        self.log_message("Log cleared")
 
     def _open_in_browser(self, url: str):
         """Open URL in Chrome (or fallback browser)"""
@@ -883,7 +899,7 @@ class NFCGui(QMainWindow):
                 QSystemTrayIcon.Information,
                 3000
             )
-            self.log_message("Background read mode enabled - window minimized to tray", "success")
+            self.log_message("Background mode active", "success")
         else:
             # Disable background read mode
             self.tray_icon.setToolTip("NFC Reader/Writer - Ready")
@@ -893,7 +909,7 @@ class NFCGui(QMainWindow):
                 QSystemTrayIcon.Information,
                 2000
             )
-            self.log_message("Background read mode disabled", "info")
+            self.log_message("Background mode off")
 
     def quit_application(self):
         """Quit the application completely"""

@@ -54,7 +54,7 @@ class NFCHandler:
             return True
         except Exception as e:
             if self.log_callback:
-                self.log_callback(f"Error initializing reader: {e}")
+                self.log_callback("Reader initialization failed", "error")
             return False
 
     def create_ndef_record(self, url: str) -> bytes:
@@ -225,16 +225,13 @@ class NFCHandler:
 
         if not self.initialize_reader():
             if self.log_callback:
-                self.log_callback("Failed to initialize NFC reader")
+                self.log_callback("Failed to connect to reader", "error")
             return
 
         self.observer = NFCObserver(self)
         self.monitor = CardMonitor()
         self.monitor.addObserver(self.observer)
         self.is_monitoring = True
-
-        if self.log_callback:
-            self.log_callback(f"Started monitoring with reader: {self.reader}")
 
     def stop_monitoring(self):
         """Stop monitoring for NFC tags"""
@@ -247,9 +244,6 @@ class NFCHandler:
         self.monitor = None
         self.observer = None
         self.is_monitoring = False
-
-        if self.log_callback:
-            self.log_callback("Stopped NFC monitoring")
 
     def set_write_mode(self, url: str, lock_after_write: bool = False, allow_overwrite: bool = False):
         """Set write mode with URL and optional locking"""
@@ -296,9 +290,9 @@ class NFCObserver(CardObserver):
 
                 connection.disconnect()
 
-            except Exception as e:
+            except Exception:
                 if self.nfc_handler.log_callback:
-                    self.nfc_handler.log_callback(f"Error: {e}", "error")
+                    self.nfc_handler.log_callback("Tag communication error", "error")
 
     def handle_read_mode(self, connection):
         """Handle reading from NFC tag with debouncing"""
@@ -315,7 +309,7 @@ class NFCObserver(CardObserver):
                 self.nfc_handler.read_callback(url)
         else:
             if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("No URL found on tag", "warning")
+                self.nfc_handler.log_callback("Empty tag - no URL found", "warning")
 
     def handle_write_mode(self, connection):
         """Handle writing to NFC tag"""
@@ -330,11 +324,8 @@ class NFCObserver(CardObserver):
 
         if existing and not self.nfc_handler.allow_overwrite:
             if self.nfc_handler.write_callback:
-                self.nfc_handler.write_callback("Write blocked: tag already contains data")
+                self.nfc_handler.write_callback("Write blocked: tag has existing data")
             return
-
-        if self.nfc_handler.log_callback:
-            self.nfc_handler.log_callback("Writing...", "info")
 
         try:
             ndef_message = self.nfc_handler.create_ndef_record(self.nfc_handler.url_to_write)
@@ -364,61 +355,47 @@ class NFCObserver(CardObserver):
                             )
             else:
                 if self.nfc_handler.log_callback:
-                    self.nfc_handler.log_callback("Write failed - check tag position", "error")
+                    self.nfc_handler.log_callback("Write failed", "error")
 
-        except Exception as e:
+        except Exception:
             if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback(f"Write error: {e}", "error")
+                self.nfc_handler.log_callback("Write error", "error")
 
     def handle_update_mode(self, connection):
         """Handle update mode: read tag, rewrite URL, write back and lock"""
         # Step 1: Read the existing URL from the tag
         try:
             existing_url = self.nfc_handler.read_ndef_message(connection)
-        except Exception as e:
+        except Exception:
             if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback(f"Failed to read tag: {e}", "error")
+                self.nfc_handler.log_callback("Failed to read tag", "error")
             return
 
         if not existing_url:
             if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("No URL found on tag - nothing to update", "warning")
+                self.nfc_handler.log_callback("Empty tag - nothing to update", "warning")
             return
 
         # Step 2: Apply URL rewriting using settings
         if not self.nfc_handler.settings:
             if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("No rewrite settings configured", "error")
+                self.nfc_handler.log_callback("Configure rewrite settings first", "error")
             return
 
         new_url, was_rewritten = self.nfc_handler.settings.rewrite_url(existing_url)
 
         if not was_rewritten:
-            if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback(f"URL doesn't need rewriting: {existing_url}", "warning")
             if self.nfc_handler.update_callback:
                 self.nfc_handler.update_callback(existing_url, existing_url, False)
             return
-
-        if self.nfc_handler.log_callback:
-            self.nfc_handler.log_callback(f"Rewriting: {existing_url}", "info")
-            self.nfc_handler.log_callback(f"       To: {new_url}", "info")
 
         # Step 3: Write the new URL back to the tag
         try:
             ndef_message = self.nfc_handler.create_ndef_record(new_url)
 
             if self.nfc_handler.write_ndef_message(connection, ndef_message):
-                success_msg = "Updated"
-
                 # Step 4: Lock the tag
-                if self.nfc_handler.lock_tag_permanently(connection):
-                    success_msg += " & locked"
-                else:
-                    success_msg += " (lock failed)"
-
-                if self.nfc_handler.log_callback:
-                    self.nfc_handler.log_callback(success_msg, "success")
+                self.nfc_handler.lock_tag_permanently(connection)
 
                 if self.nfc_handler.update_callback:
                     self.nfc_handler.update_callback(existing_url, new_url, True)
@@ -436,12 +413,12 @@ class NFCObserver(CardObserver):
                             )
             else:
                 if self.nfc_handler.log_callback:
-                    self.nfc_handler.log_callback("Update failed - write error", "error")
+                    self.nfc_handler.log_callback("Update failed", "error")
                 if self.nfc_handler.update_callback:
                     self.nfc_handler.update_callback(existing_url, new_url, False)
 
-        except Exception as e:
+        except Exception:
             if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback(f"Update error: {e}", "error")
+                self.nfc_handler.log_callback("Update error", "error")
             if self.nfc_handler.update_callback:
                 self.nfc_handler.update_callback(existing_url, new_url, False)
