@@ -870,10 +870,8 @@ class NFCGui(QMainWindow):
         self.nfc_handler.batch_count = 0
         self.nfc_handler.batch_total = batch_count
 
-        # Play TTS sequence: "URL Validated" -> pause -> "Present Tag"
-        self._play_tts("url_validated")
-        from PyQt5.QtCore import QTimer
-        QTimer.singleShot(1200, lambda: self._play_tts("present_tag"))
+        # Play TTS to prompt user
+        self._play_tts("present_tag")
 
         # Show/update progress indicator for batch operations
         if batch_count > 1:
