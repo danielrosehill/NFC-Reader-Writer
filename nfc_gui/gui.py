@@ -550,6 +550,16 @@ class NFCGui(QMainWindow):
         """)
         self.status_message.setText(message)
 
+        # Play TTS for error/warning messages from nfc_handler callbacks
+        if level == "error" or level == "warning":
+            msg_lower = message.lower()
+            if "no url found" in msg_lower or "empty tag" in msg_lower:
+                self._play_tts("no_tag_found")
+            elif "communication error" in msg_lower:
+                self._play_tts("comm_error")
+            elif "failed to read" in msg_lower:
+                self._play_tts("read_failed")
+
     def initialize_nfc(self):
         """Initialize NFC reader"""
         try:
@@ -572,6 +582,7 @@ class NFCGui(QMainWindow):
                 self.status_label.setText("Status: No reader found")
                 self.status_label.setStyleSheet("background-color: #f44336; color: white;")
                 self.log_message("No NFC reader found", "error")
+                self._play_tts("no_reader")
                 QMessageBox.critical(self, "Error", "No NFC reader found.\nPlease connect ACS ACR1252 USB reader.")
         except Exception as e:
             self.status_label.setText("Status: Error")
@@ -590,6 +601,8 @@ class NFCGui(QMainWindow):
         # Hide write-mode controls
         self._toggle_write_controls(False)
 
+        self._play_tts("read_mode")
+
     def set_write_mode(self):
         """Switch to write mode"""
         self.current_mode = "write"
@@ -603,6 +616,8 @@ class NFCGui(QMainWindow):
         # Auto-focus URL input for quick workflow
         self.url_input.setFocus()
         self.url_input.selectAll()  # Select any existing text
+
+        self._play_tts("ready_to_write")
 
     def set_update_mode(self):
         """Switch to update mode - rewrites old local URLs to new public format"""
@@ -620,6 +635,8 @@ class NFCGui(QMainWindow):
 
         # Hide write-mode controls (update mode doesn't need URL input)
         self._toggle_write_controls(False)
+
+        self._play_tts("update_mode")
 
     def open_settings(self):
         """Open the settings dialog"""
@@ -728,6 +745,12 @@ class NFCGui(QMainWindow):
             self._play_tts("tag_written")  # Voice announcement
         else:
             self.log_message("Write failed", "error")
+            if "existing data" in message.lower() or "blocked" in message.lower():
+                self._play_tts("tag_has_data")
+            elif "locked" in message.lower():
+                self._play_tts("tag_locked")
+            else:
+                self._play_tts("write_failed")
 
         self._play_beep("write" if is_success else "error")
 
@@ -758,9 +781,11 @@ class NFCGui(QMainWindow):
             if old_url == new_url:
                 # URL didn't need rewriting
                 self.log_message("Tag already up to date", "warning")
+                self._play_tts("tag_up_to_date")
             else:
                 self.log_message("Update failed", "error")
                 self._play_beep("error")
+                self._play_tts("update_failed")
 
     def copy_last_url(self):
         """Copy last URL to clipboard"""

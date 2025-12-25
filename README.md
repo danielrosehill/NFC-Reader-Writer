@@ -170,8 +170,24 @@ The application includes configurable URL rewriting for migrating NFC tags from 
 
 **Settings Dialog:**
 Click the "Settings" button to configure:
-- **Source URL Pattern**: A regex pattern to match URLs that need rewriting (e.g., `^https?://10\.0\.0\.\d+(?::\d+)?/+item/(.+)$`)
-- **Target Base URL**: The new base URL to use (e.g., `https://your-domain.com/item/`)
+- **Source URL Pattern**: A regex pattern to match URLs that need rewriting
+- **Target Base URL**: The new base URL to use
+
+### Example: Homebox Asset Tags
+
+If you have NFC tags pointing to a local Homebox instance and want to migrate them to a public URL:
+
+| Field | Value |
+|-------|-------|
+| **Source Pattern** | `^https?://10\.0\.0\.1:3100/item/(.+)$` |
+| **Target Base URL** | `https://homebox.example.com/item/` |
+
+This pattern:
+- `^https?://` - Matches both `http://` and `https://`
+- `10\.0\.0\.1:3100` - Matches your local Homebox IP and port (dots escaped with `\`)
+- `/item/(.+)$` - Captures the item ID to append to the target URL
+
+**Result:** `http://10.0.0.1:3100/item/abc123` → `https://homebox.example.com/item/abc123`
 
 **Update Mode:**
 Use "Update Mode" to automatically:
