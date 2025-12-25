@@ -9,9 +9,9 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QPushButton, QTextEdit,
                              QLineEdit, QCheckBox, QSpinBox, QGroupBox,
                              QMessageBox, QFrame, QProgressBar, QSystemTrayIcon,
-                             QMenu, QAction)
+                             QMenu, QAction, QShortcut)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject, pyqtSlot
-from PyQt5.QtGui import QFont, QIcon, QPixmap
+from PyQt5.QtGui import QFont, QIcon, QPixmap, QKeySequence
 import pyperclip
 import subprocess
 import os
@@ -453,19 +453,19 @@ class NFCGui(QMainWindow):
 
         self.read_btn = QPushButton("Read Mode")
         self.read_btn.setObjectName("readBtn")
-        self.read_btn.setToolTip("Switch to read mode - automatically opens scanned URLs")
+        self.read_btn.setToolTip("Switch to read mode - automatically opens scanned URLs (Ctrl+R)")
         self.read_btn.clicked.connect(self.set_read_mode)
         mode_layout.addWidget(self.read_btn)
 
         self.write_btn = QPushButton("Write Mode")
         self.write_btn.setObjectName("writeBtn")
-        self.write_btn.setToolTip("Switch to write mode - write URLs to NFC tags")
+        self.write_btn.setToolTip("Switch to write mode - write URLs to NFC tags (Ctrl+W)")
         self.write_btn.clicked.connect(self.set_write_mode)
         mode_layout.addWidget(self.write_btn)
 
         self.update_btn = QPushButton("Update Mode")
         self.update_btn.setObjectName("updateBtn")
-        self.update_btn.setToolTip("Switch to update mode - rewrites old local URLs to new public format")
+        self.update_btn.setToolTip("Switch to update mode - rewrites old local URLs to new public format (Ctrl+U)")
         self.update_btn.clicked.connect(self.set_update_mode)
         mode_layout.addWidget(self.update_btn)
 
@@ -594,6 +594,16 @@ class NFCGui(QMainWindow):
 
         bottom_layout.addStretch()
         main_layout.addLayout(bottom_layout)
+
+        # Keyboard shortcuts for mode selection
+        self.shortcut_read = QShortcut(QKeySequence("Ctrl+R"), self)
+        self.shortcut_read.activated.connect(self.set_read_mode)
+
+        self.shortcut_write = QShortcut(QKeySequence("Ctrl+W"), self)
+        self.shortcut_write.activated.connect(self.set_write_mode)
+
+        self.shortcut_update = QShortcut(QKeySequence("Ctrl+U"), self)
+        self.shortcut_update.activated.connect(self.set_update_mode)
 
     def log_message(self, message, level="info"):
         """Update status message with color coding
