@@ -35,6 +35,8 @@ All TTS files are stored in: `nfc_gui/sounds/`
 - `batch_started.ogg` - "Batch started"
 - `batch_finished.ogg` - "Batch finished"
 - `read_mode.ogg` - "Read mode"
+- `copy_url_mode.ogg` - "Copy URL mode"
+- `url_copied.ogg` - "URL copied"
 - `ready_to_write.ogg` - "Ready to write"
 - `update_mode.ogg` - "Update mode"
 - `update_failed.ogg` - "Update failed"
