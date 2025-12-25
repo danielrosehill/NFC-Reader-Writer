@@ -5,7 +5,7 @@ set -e
 # Rebuilds Debian package and updates installed version
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.2.1"
+APP_VERSION="1.4.1"
 
 # Colors
 GREEN='\033[0;32m'
@@ -47,7 +47,7 @@ if dpkg -l | grep -q "^ii  $APP_NAME"; then
     print_success "Currently installed version: $CURRENT_VERSION"
 else
     print_warning "Package not currently installed"
-    CURRENT_VERSION="none"
+    CURRENT_VERSION="1.4.1"
 fi
 
 # Step 1: Build the new package
