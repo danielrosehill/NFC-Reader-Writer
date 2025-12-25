@@ -5,7 +5,7 @@ set -e
 # Builds and optionally installs the Debian package
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.2.1"
+APP_VERSION="1.4.0"
 BUILD_DIR="build"
 DIST_DIR="dist"
 DEB_FILE="${DIST_DIR}/${APP_NAME}_${APP_VERSION}_amd64.deb"
