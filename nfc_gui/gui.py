@@ -479,7 +479,6 @@ class NFCGui(QMainWindow):
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Enter URL to write to tag...")
-        self.url_input.returnPressed.connect(self.write_tags)  # Enter key to write
         self.url_input.textChanged.connect(self._on_url_changed)  # Auto-update on URL change
         self.url_layout.addWidget(self.url_input, 1)
 
@@ -522,11 +521,6 @@ class NFCGui(QMainWindow):
         self.batch_spinbox.valueChanged.connect(self._on_batch_changed)
         self.batch_layout.addWidget(self.batch_spinbox)
 
-        self.write_tags_btn = QPushButton("Write Tag(s)")
-        self.write_tags_btn.setObjectName("actionBtn")
-        self.write_tags_btn.setToolTip("Start writing - present tag(s) to reader (Press Enter)")
-        self.write_tags_btn.clicked.connect(self.write_tags)
-        self.batch_layout.addWidget(self.write_tags_btn)
 
         self.batch_layout.addStretch()
         control_layout.addLayout(self.batch_layout)
@@ -759,7 +753,6 @@ class NFCGui(QMainWindow):
         # Batch controls
         self.batch_label.setVisible(visible)
         self.batch_spinbox.setVisible(visible)
-        self.write_tags_btn.setVisible(visible)
 
     def paste_url(self):
         """Paste URL from clipboard and prepare for writing"""
@@ -869,9 +862,6 @@ class NFCGui(QMainWindow):
         # Set batch parameters
         self.nfc_handler.batch_count = 0
         self.nfc_handler.batch_total = batch_count
-
-        # Play TTS to prompt user
-        self._play_tts("present_tag")
 
         # Show/update progress indicator for batch operations
         if batch_count > 1:
