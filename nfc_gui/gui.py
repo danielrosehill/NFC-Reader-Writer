@@ -230,6 +230,7 @@ class NFCGui(QMainWindow):
         # NFC Handler with settings
         self.nfc_handler = NFCHandler(debug_mode=False, settings=self.settings)
         self.current_mode = "read"
+        self.read_mode_type = "default"  # "default" opens browser, "copy_url" only copies
         self.last_url = None
         self.settings_dialog = None
 
@@ -289,6 +290,16 @@ class NFCGui(QMainWindow):
             QPushButton#readBtn:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 #16a34a, stop:1 #15803d);
+            }
+            QPushButton#copyUrlBtn {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #06b6d4, stop:1 #0891b2);
+                color: white;
+                min-width: 140px;
+            }
+            QPushButton#copyUrlBtn:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #0891b2, stop:1 #0e7490);
             }
             QPushButton#writeBtn {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -443,6 +454,42 @@ class NFCGui(QMainWindow):
 
         main_layout.addLayout(header_layout)
 
+        # URL display box for Copy URL Mode (hidden by default)
+        self.url_display_frame = QFrame()
+        self.url_display_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f0f9ff;
+                border: 2px solid #06b6d4;
+                border-radius: 10px;
+                padding: 8px;
+            }
+        """)
+        url_display_layout = QVBoxLayout(self.url_display_frame)
+        url_display_layout.setContentsMargins(12, 8, 12, 8)
+
+        url_display_header = QLabel("Copied URL:")
+        url_display_header.setStyleSheet("color: #0e7490; font-weight: 600; font-size: 12px; border: none;")
+        url_display_layout.addWidget(url_display_header)
+
+        self.copied_url_display = QLabel("Present a tag to copy its URL")
+        self.copied_url_display.setStyleSheet("""
+            QLabel {
+                color: #164e63;
+                font-size: 14px;
+                font-family: 'SF Mono', 'Consolas', monospace;
+                padding: 8px;
+                background-color: #ffffff;
+                border: 1px solid #cffafe;
+                border-radius: 6px;
+            }
+        """)
+        self.copied_url_display.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.copied_url_display.setWordWrap(True)
+        url_display_layout.addWidget(self.copied_url_display)
+
+        self.url_display_frame.setVisible(False)  # Hidden by default
+        main_layout.addWidget(self.url_display_frame)
+
         # Control panel
         control_group = QGroupBox("Controls")
         control_layout = QVBoxLayout()
@@ -456,6 +503,12 @@ class NFCGui(QMainWindow):
         self.read_btn.setToolTip("Switch to read mode - automatically opens scanned URLs (Ctrl+R)")
         self.read_btn.clicked.connect(self.set_read_mode)
         mode_layout.addWidget(self.read_btn)
+
+        self.copy_url_btn = QPushButton("Copy URL Mode")
+        self.copy_url_btn.setObjectName("copyUrlBtn")
+        self.copy_url_btn.setToolTip("Switch to copy URL mode - copies scanned URLs to clipboard without opening (Ctrl+Shift+R)")
+        self.copy_url_btn.clicked.connect(self.set_copy_url_mode)
+        mode_layout.addWidget(self.copy_url_btn)
 
         self.write_btn = QPushButton("Write Mode")
         self.write_btn.setObjectName("writeBtn")
@@ -599,6 +652,9 @@ class NFCGui(QMainWindow):
         self.shortcut_read = QShortcut(QKeySequence("Ctrl+R"), self)
         self.shortcut_read.activated.connect(self.set_read_mode)
 
+        self.shortcut_copy_url = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
+        self.shortcut_copy_url.activated.connect(self.set_copy_url_mode)
+
         self.shortcut_write = QShortcut(QKeySequence("Ctrl+W"), self)
         self.shortcut_write.activated.connect(self.set_write_mode)
 
@@ -676,17 +732,35 @@ class NFCGui(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to initialize reader:\n{e}")
 
     def set_read_mode(self):
-        """Switch to read mode"""
+        """Switch to read mode (default - opens URLs in browser)"""
         self.current_mode = "read"
+        self.read_mode_type = "default"
         self.nfc_handler.set_read_mode()
         self.log_message("Ready to read - present NFC tag")
         self.status_label.setText("READ MODE")
         self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
 
-        # Hide write-mode controls
+        # Hide write-mode controls and URL display
         self._toggle_write_controls(False)
+        self.url_display_frame.setVisible(False)
 
         self._play_tts("read_mode")
+
+    def set_copy_url_mode(self):
+        """Switch to copy URL mode (copies URLs to clipboard without opening browser)"""
+        self.current_mode = "read"
+        self.read_mode_type = "copy_url"
+        self.nfc_handler.set_read_mode()
+        self.log_message("Copy URL mode - present NFC tag to copy URL")
+        self.status_label.setText("COPY URL MODE")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #06b6d4, stop:1 #0891b2); color: white;")
+
+        # Hide write-mode controls, show URL display
+        self._toggle_write_controls(False)
+        self.url_display_frame.setVisible(True)
+        self.copied_url_display.setText("Present a tag to copy its URL")
+
+        self._play_tts("copy_url_mode")
 
     def set_write_mode(self):
         """Switch to write mode"""
@@ -694,8 +768,9 @@ class NFCGui(QMainWindow):
         self.status_label.setText("WRITE MODE")
         self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3b82f6, stop:1 #2563eb); color: white;")
 
-        # Show write-mode controls
+        # Show write-mode controls, hide URL display
         self._toggle_write_controls(True)
+        self.url_display_frame.setVisible(False)
 
         # Auto-focus URL input for quick workflow
         self.url_input.setFocus()
@@ -733,8 +808,9 @@ class NFCGui(QMainWindow):
         self.status_label.setText("UPDATE MODE")
         self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a855f7, stop:1 #9333ea); color: white;")
 
-        # Hide write-mode controls (update mode doesn't need URL input)
+        # Hide write-mode controls and URL display (update mode doesn't need URL input)
         self._toggle_write_controls(False)
+        self.url_display_frame.setVisible(False)
 
         self._play_tts("update_mode")
 
@@ -887,9 +963,7 @@ class NFCGui(QMainWindow):
     def on_tag_read(self, url):
         """Handle tag read event (thread-safe slot)"""
         self.last_url = url
-        self.log_message("Tag read - opened in browser", "success")
         self._play_beep("read")  # Short beep for successful read
-        self._play_tts("tag_opened")  # Voice announcement
 
         # Copy to clipboard
         try:
@@ -897,8 +971,16 @@ class NFCGui(QMainWindow):
         except Exception:
             pass
 
-        # Open in browser
-        self._open_in_browser(url)
+        if self.read_mode_type == "copy_url":
+            # Copy URL Mode: display URL and copy to clipboard, don't open browser
+            self.copied_url_display.setText(url)
+            self.log_message("URL copied to clipboard", "success")
+            self._play_tts("url_copied")  # Voice announcement for copy mode
+        else:
+            # Default Read Mode: open in browser
+            self.log_message("Tag read - opened in browser", "success")
+            self._play_tts("tag_opened")  # Voice announcement
+            self._open_in_browser(url)
 
     @pyqtSlot(str)
     def on_tag_written(self, message):
