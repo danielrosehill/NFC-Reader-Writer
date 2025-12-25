@@ -244,99 +244,170 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.0")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.1")
         self.setGeometry(100, 100, 800, 500)
 
-        # Set modern stylesheet
+        # Set modern stylesheet with contemporary design
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #f5f5f5;
+                background-color: #f8fafc;
             }
             QGroupBox {
-                font-weight: bold;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                margin-top: 12px;
-                padding-top: 10px;
-                background-color: white;
+                font-weight: 600;
+                font-size: 13px;
+                color: #475569;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                margin-top: 16px;
+                padding: 16px 12px 12px 12px;
+                background-color: #ffffff;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
+                left: 16px;
+                padding: 0 8px;
+                background-color: #ffffff;
             }
             QPushButton {
                 padding: 10px 20px;
-                border-radius: 4px;
-                font-weight: bold;
+                border-radius: 8px;
+                font-weight: 600;
                 min-width: 120px;
                 font-size: 13px;
+                border: none;
+            }
+            QPushButton:pressed {
+                padding-top: 11px;
+                padding-bottom: 9px;
             }
             QPushButton#readBtn {
-                background-color: #4CAF50;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #22c55e, stop:1 #16a34a);
                 color: white;
-                border: none;
                 min-width: 140px;
             }
             QPushButton#readBtn:hover {
-                background-color: #45a049;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #16a34a, stop:1 #15803d);
             }
             QPushButton#writeBtn {
-                background-color: #2196F3;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #3b82f6, stop:1 #2563eb);
                 color: white;
-                border: none;
                 min-width: 140px;
             }
             QPushButton#writeBtn:hover {
-                background-color: #0b7dda;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #2563eb, stop:1 #1d4ed8);
             }
             QPushButton#updateBtn {
-                background-color: #9C27B0;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #a855f7, stop:1 #9333ea);
                 color: white;
-                border: none;
                 min-width: 140px;
             }
             QPushButton#updateBtn:hover {
-                background-color: #7B1FA2;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #9333ea, stop:1 #7e22ce);
             }
             QPushButton#actionBtn {
-                background-color: #ff9800;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #f97316, stop:1 #ea580c);
                 color: white;
-                border: none;
                 padding: 14px 28px;
-                font-size: 15px;
+                font-size: 14px;
                 min-width: 150px;
             }
             QPushButton#actionBtn:hover {
-                background-color: #e68900;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #ea580c, stop:1 #c2410c);
             }
             QPushButton#secondaryBtn {
-                background-color: #607D8B;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #64748b, stop:1 #475569);
                 color: white;
-                border: none;
             }
             QPushButton#secondaryBtn:hover {
-                background-color: #546E7A;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #475569, stop:1 #334155);
             }
             QLineEdit {
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: white;
+                padding: 10px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                background-color: #ffffff;
+                font-size: 13px;
+                selection-background-color: #3b82f6;
+            }
+            QLineEdit:focus {
+                border: 2px solid #3b82f6;
+                padding: 9px 11px;
             }
             QTextEdit {
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background-color: white;
-                font-family: monospace;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                background-color: #ffffff;
+                font-family: 'SF Mono', 'Consolas', monospace;
+                padding: 8px;
             }
             QCheckBox {
-                spacing: 8px;
+                spacing: 10px;
+                font-size: 13px;
+                color: #334155;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 2px solid #cbd5e1;
+                background-color: #ffffff;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3b82f6;
+                border-color: #3b82f6;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #3b82f6;
             }
             QLabel#statusLabel {
-                padding: 8px;
-                border-radius: 4px;
-                font-weight: bold;
+                padding: 12px 16px;
+                border-radius: 10px;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            QSpinBox {
+                padding: 8px 12px;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                background-color: #ffffff;
+                font-size: 13px;
+                min-width: 80px;
+            }
+            QSpinBox:focus {
+                border: 2px solid #3b82f6;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                border: none;
+                width: 20px;
+            }
+            QProgressBar {
+                border: none;
+                border-radius: 6px;
+                background-color: #e2e8f0;
+                height: 12px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #3b82f6, stop:1 #8b5cf6);
+                border-radius: 6px;
+            }
+            QMessageBox {
+                background-color: #ffffff;
+            }
+            QMessageBox QPushButton {
+                min-width: 80px;
+                padding: 8px 16px;
             }
         """)
 
@@ -358,6 +429,11 @@ class NFCGui(QMainWindow):
 
         header_layout.addStretch()
 
+        self.status_label = QLabel("Initializing...")
+        self.status_label.setObjectName("statusLabel")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fbbf24, stop:1 #f59e0b); color: white;")
+        header_layout.addWidget(self.status_label)
+
         # Settings button
         settings_btn = QPushButton("Settings")
         settings_btn.setObjectName("secondaryBtn")
@@ -365,20 +441,15 @@ class NFCGui(QMainWindow):
         settings_btn.clicked.connect(self.open_settings)
         header_layout.addWidget(settings_btn)
 
-        self.status_label = QLabel("Status: Initializing...")
-        self.status_label.setObjectName("statusLabel")
-        self.status_label.setStyleSheet("background-color: #FFC107; color: white;")
-        header_layout.addWidget(self.status_label)
-
         main_layout.addLayout(header_layout)
 
         # Control panel
         control_group = QGroupBox("Controls")
         control_layout = QVBoxLayout()
 
-        # Mode selection
+        # Mode selection - centered
         mode_layout = QHBoxLayout()
-        mode_layout.addWidget(QLabel("Mode:"))
+        mode_layout.addStretch()
 
         self.read_btn = QPushButton("Read Mode")
         self.read_btn.setObjectName("readBtn")
@@ -409,6 +480,7 @@ class NFCGui(QMainWindow):
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Enter URL to write to tag...")
         self.url_input.returnPressed.connect(self.write_tags)  # Enter key to write
+        self.url_input.textChanged.connect(self._on_url_changed)  # Auto-update on URL change
         self.url_layout.addWidget(self.url_input, 1)
 
         self.paste_btn = QPushButton("Paste")
@@ -425,11 +497,13 @@ class NFCGui(QMainWindow):
         self.lock_checkbox = QCheckBox("Lock tag after writing")
         self.lock_checkbox.setChecked(True)
         self.lock_checkbox.setToolTip("Lock tag to prevent further writes (recommended for single-use tags)")
+        self.lock_checkbox.stateChanged.connect(self._on_write_options_changed)
         self.options_layout.addWidget(self.lock_checkbox)
 
         self.overwrite_checkbox = QCheckBox("Allow overwrite")
         self.overwrite_checkbox.setChecked(False)
         self.overwrite_checkbox.setToolTip("Allow writing to tags that already contain data")
+        self.overwrite_checkbox.stateChanged.connect(self._on_write_options_changed)
         self.options_layout.addWidget(self.overwrite_checkbox)
 
         self.options_layout.addStretch()
@@ -445,6 +519,7 @@ class NFCGui(QMainWindow):
         self.batch_spinbox.setMaximum(100)
         self.batch_spinbox.setValue(1)
         self.batch_spinbox.setToolTip("Number of tags to write with the same URL")
+        self.batch_spinbox.valueChanged.connect(self._on_batch_changed)
         self.batch_layout.addWidget(self.batch_spinbox)
 
         self.write_tags_btn = QPushButton("Write Tag(s)")
@@ -488,19 +563,21 @@ class NFCGui(QMainWindow):
         self.status_message.setAlignment(Qt.AlignCenter)
         self.status_message.setStyleSheet("""
             QLabel {
-                padding: 20px;
-                font-size: 16px;
-                color: #333;
-                background-color: #f0f0f0;
-                border-radius: 8px;
-                border: 1px solid #ddd;
+                padding: 24px;
+                font-size: 15px;
+                font-weight: 500;
+                color: #475569;
+                background-color: #ffffff;
+                border-radius: 12px;
+                border: 1px solid #e2e8f0;
             }
         """)
-        self.status_message.setMinimumHeight(80)
+        self.status_message.setMinimumHeight(100)
         main_layout.addWidget(self.status_message)
 
-        # Bottom buttons
+        # Bottom buttons - centered
         bottom_layout = QHBoxLayout()
+        bottom_layout.addStretch()
 
         copy_btn = QPushButton("Copy Last URL")
         copy_btn.setObjectName("secondaryBtn")
@@ -531,22 +608,23 @@ class NFCGui(QMainWindow):
             message: The message to display
             level: One of 'success', 'error', 'warning', 'info'
         """
-        # Color and background mapping
+        # Modern color palette with subtle backgrounds
         styles = {
-            'success': ('color: #2e7d32; background-color: #e8f5e9;', '#4CAF50'),
-            'error': ('color: #c62828; background-color: #ffebee;', '#f44336'),
-            'warning': ('color: #ef6c00; background-color: #fff3e0;', '#ff9800'),
-            'info': ('color: #1565c0; background-color: #e3f2fd;', '#2196F3')
+            'success': ('color: #166534; background-color: #f0fdf4;', '#22c55e'),
+            'error': ('color: #991b1b; background-color: #fef2f2;', '#ef4444'),
+            'warning': ('color: #9a3412; background-color: #fff7ed;', '#f97316'),
+            'info': ('color: #1e40af; background-color: #eff6ff;', '#3b82f6')
         }
 
         style, border_color = styles.get(level, styles['info'])
 
         self.status_message.setStyleSheet(f"""
             QLabel {{
-                padding: 20px;
-                font-size: 16px;
+                padding: 24px;
+                font-size: 15px;
+                font-weight: 500;
                 {style}
-                border-radius: 8px;
+                border-radius: 12px;
                 border: 2px solid {border_color};
             }}
         """)
@@ -566,8 +644,8 @@ class NFCGui(QMainWindow):
         """Initialize NFC reader"""
         try:
             if self.nfc_handler.initialize_reader():
-                self.status_label.setText(f"Status: Connected - {self.nfc_handler.reader}")
-                self.status_label.setStyleSheet("background-color: #4CAF50; color: white;")
+                self.status_label.setText("Connected")
+                self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
                 self.log_message("Reader connected", "success")
 
                 # Start monitoring with signal emitters as callbacks (thread-safe)
@@ -582,14 +660,14 @@ class NFCGui(QMainWindow):
                 # Start in read mode
                 self.set_read_mode()
             else:
-                self.status_label.setText("Status: No reader found")
-                self.status_label.setStyleSheet("background-color: #f44336; color: white;")
+                self.status_label.setText("No Reader")
+                self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ef4444, stop:1 #dc2626); color: white;")
                 self.log_message("No NFC reader found", "error")
                 self._play_tts("no_reader")
                 QMessageBox.critical(self, "Error", "No NFC reader found.\nPlease connect ACS ACR1252 USB reader.")
         except Exception as e:
-            self.status_label.setText("Status: Error")
-            self.status_label.setStyleSheet("background-color: #f44336; color: white;")
+            self.status_label.setText("Error")
+            self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ef4444, stop:1 #dc2626); color: white;")
             self.log_message("Failed to connect to reader", "error")
             QMessageBox.critical(self, "Error", f"Failed to initialize reader:\n{e}")
 
@@ -598,8 +676,8 @@ class NFCGui(QMainWindow):
         self.current_mode = "read"
         self.nfc_handler.set_read_mode()
         self.log_message("Ready to read - present NFC tag")
-        self.status_label.setText("Status: Connected - READ MODE")
-        self.status_label.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.status_label.setText("READ MODE")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
 
         # Hide write-mode controls
         self._toggle_write_controls(False)
@@ -609,9 +687,8 @@ class NFCGui(QMainWindow):
     def set_write_mode(self):
         """Switch to write mode"""
         self.current_mode = "write"
-        self.log_message("Ready to write - enter URL and present tag")
-        self.status_label.setText("Status: Connected - WRITE MODE")
-        self.status_label.setStyleSheet("background-color: #2196F3; color: white;")
+        self.status_label.setText("WRITE MODE")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3b82f6, stop:1 #2563eb); color: white;")
 
         # Show write-mode controls
         self._toggle_write_controls(True)
@@ -619,6 +696,22 @@ class NFCGui(QMainWindow):
         # Auto-focus URL input for quick workflow
         self.url_input.setFocus()
         self.url_input.selectAll()  # Select any existing text
+
+        # If there's already a URL in the input, apply it immediately
+        url = self.url_input.text().strip()
+        if url:
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            self.nfc_handler.set_write_mode(
+                url,
+                lock_after_write=self.lock_checkbox.isChecked(),
+                allow_overwrite=self.overwrite_checkbox.isChecked()
+            )
+            self.nfc_handler.batch_total = self.batch_spinbox.value()
+            self.nfc_handler.batch_count = 0
+            self.log_message("URL ready - present tag to write", "info")
+        else:
+            self.log_message("Ready to write - enter URL and present tag")
 
         self._play_tts("ready_to_write")
 
@@ -633,8 +726,8 @@ class NFCGui(QMainWindow):
         else:
             self.log_message("Step 1: Scan tag with old URL pattern")
 
-        self.status_label.setText("Status: UPDATE - Scan old tag")
-        self.status_label.setStyleSheet("background-color: #9C27B0; color: white;")
+        self.status_label.setText("UPDATE MODE")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a855f7, stop:1 #9333ea); color: white;")
 
         # Hide write-mode controls (update mode doesn't need URL input)
         self._toggle_write_controls(False)
@@ -669,18 +762,88 @@ class NFCGui(QMainWindow):
         self.write_tags_btn.setVisible(visible)
 
     def paste_url(self):
-        """Paste URL from clipboard"""
+        """Paste URL from clipboard and prepare for writing"""
         try:
             clipboard_content = pyperclip.paste().strip()
             if clipboard_content:
+                # Switch to write mode if not already
+                if self.current_mode != "write":
+                    self.set_write_mode()
+
                 self.url_input.setText(clipboard_content)
-                self.log_message("URL pasted from clipboard", "info")
+                # _on_url_changed will handle updating the handler and TTS
             else:
                 self.log_message("Clipboard is empty", "warning")
                 QMessageBox.warning(self, "Warning", "Clipboard is empty")
         except Exception as e:
             self.log_message("Failed to paste from clipboard", "error")
             QMessageBox.critical(self, "Error", f"Failed to paste from clipboard:\n{e}")
+
+    def _on_url_changed(self, url: str):
+        """Handle URL text changes - auto-update write mode configuration"""
+        url = url.strip()
+        if not url:
+            return
+
+        # Only auto-update when in write mode
+        if self.current_mode != "write":
+            return
+
+        # Add https:// if not present
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        # Update the NFC handler with new URL
+        self.nfc_handler.set_write_mode(
+            url,
+            lock_after_write=self.lock_checkbox.isChecked(),
+            allow_overwrite=self.overwrite_checkbox.isChecked()
+        )
+
+        # Preserve batch settings
+        batch_count = self.batch_spinbox.value()
+        if self.nfc_handler.batch_total != batch_count:
+            self.nfc_handler.batch_total = batch_count
+            self.nfc_handler.batch_count = 0
+
+        # Play TTS and update status
+        self._play_tts("url_updated")
+        self.log_message("URL updated - present tag to write", "info")
+
+    def _on_batch_changed(self, count: int):
+        """Handle batch count changes - auto-update write mode configuration"""
+        if self.current_mode != "write":
+            return
+
+        self.nfc_handler.batch_total = count
+        self.nfc_handler.batch_count = 0
+
+        # Show/hide progress indicator based on batch count
+        if count > 1:
+            self.progress_group.setVisible(True)
+            self.progress_label.setText(f"Tag 0 of {count}")
+            self.progress_bar.setValue(0)
+        else:
+            self.progress_group.setVisible(False)
+
+    def _on_write_options_changed(self):
+        """Handle lock/overwrite checkbox changes - auto-update write mode configuration"""
+        if self.current_mode != "write":
+            return
+
+        url = self.url_input.text().strip()
+        if not url:
+            return
+
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        # Update the handler with new options
+        self.nfc_handler.set_write_mode(
+            url,
+            lock_after_write=self.lock_checkbox.isChecked(),
+            allow_overwrite=self.overwrite_checkbox.isChecked()
+        )
 
     def write_tags(self):
         """Write URL to tag(s)"""
@@ -784,8 +947,8 @@ class NFCGui(QMainWindow):
         self.log_message("Outdated tag detected - present new blank tag", "success")
 
         # Update status to show we're waiting for a new tag
-        self.status_label.setText("Status: UPDATE - Present NEW blank tag")
-        self.status_label.setStyleSheet("background-color: #FF9800; color: white;")  # Orange for waiting
+        self.status_label.setText("PRESENT NEW TAG")
+        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f97316, stop:1 #ea580c); color: white;")
 
     @pyqtSlot(str, str, bool)
     def on_tag_updated(self, old_url, new_url, success):
@@ -797,8 +960,8 @@ class NFCGui(QMainWindow):
             self._play_tts("tag_updated")  # Voice announcement
 
             # Reset status back to waiting for old tag
-            self.status_label.setText("Status: UPDATE - Scan old tag")
-            self.status_label.setStyleSheet("background-color: #9C27B0; color: white;")
+            self.status_label.setText("UPDATE MODE")
+            self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a855f7, stop:1 #9333ea); color: white;")
         else:
             if old_url == new_url:
                 # URL didn't need rewriting (scanned in step 1)
