@@ -139,7 +139,7 @@ cat > "$DEB_DIR/usr/bin/$APP_NAME" << 'LAUNCHER'
 set -euo pipefail
 APP_DIR="/usr/share/nfc-gui"
 cd "$APP_DIR"
-exec python3 -m nfc_gui.gui "$@"
+exec /usr/bin/python3 -m nfc_gui.gui "$@"
 LAUNCHER
 chmod 755 "$DEB_DIR/usr/bin/$APP_NAME"
 
