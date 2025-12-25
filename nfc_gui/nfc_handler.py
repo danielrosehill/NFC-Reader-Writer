@@ -117,6 +117,29 @@ class NFCHandler:
             return bytes(response)
         return None
 
+    def is_tag_locked(self, connection: CardConnection) -> bool:
+        """Check if tag has lock bits set (pages 3-15 locked)"""
+        try:
+            page2 = self._pcsc_read_page(connection, 2)
+            if page2 and len(page2) == 4:
+                # Bytes 2 and 3 of page 2 are the static lock bytes
+                # If they're 0xFF, pages 3-15 are locked
+                if page2[2] == 0xFF and page2[3] == 0xFF:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def _verify_write(self, connection: CardConnection, page: int, expected: bytes) -> bool:
+        """Verify a page was written correctly by reading it back"""
+        try:
+            actual = self._pcsc_read_page(connection, page)
+            if actual is None:
+                return False
+            return actual[:len(expected)] == expected[:len(actual)]
+        except Exception:
+            return False
+
     def _format_cc_if_needed(self, connection: CardConnection) -> bool:
         """Ensure Capability Container (CC) bytes are present on page 3 for NTAG213."""
         try:
@@ -326,11 +349,17 @@ class NFCObserver(CardObserver):
                 self.nfc_handler.read_callback(url)
         else:
             if self.nfc_handler.log_callback:
-                self.nfc_handler.log_callback("Empty tag - no URL found", "warning")
+                self.nfc_handler.log_callback("Invalid URL", "warning")
 
     def handle_write_mode(self, connection):
         """Handle writing to NFC tag"""
         if not self.nfc_handler.url_to_write:
+            return
+
+        # Check if tag is locked first
+        if self.nfc_handler.is_tag_locked(connection):
+            if self.nfc_handler.write_callback:
+                self.nfc_handler.write_callback("Locked tag - writing prevented")
             return
 
         # Safety: prevent overwriting existing NDEF unless explicitly allowed
@@ -348,6 +377,14 @@ class NFCObserver(CardObserver):
             ndef_message = self.nfc_handler.create_ndef_record(self.nfc_handler.url_to_write)
 
             if self.nfc_handler.write_ndef_message(connection, ndef_message):
+                # Verify the write by reading back and comparing
+                written_url = self.nfc_handler.read_ndef_message(connection)
+                if written_url != self.nfc_handler.url_to_write:
+                    # Write appeared to succeed but verification failed (likely locked)
+                    if self.nfc_handler.write_callback:
+                        self.nfc_handler.write_callback("Locked tag - writing prevented")
+                    return
+
                 success_msg = "Written"
 
                 if self.nfc_handler.lock_tags:
@@ -429,6 +466,12 @@ class NFCObserver(CardObserver):
                 handler.update_step = "scan_old"
                 return
 
+            # Check if tag is locked first
+            if handler.is_tag_locked(connection):
+                if handler.log_callback:
+                    handler.log_callback("Locked tag - writing prevented", "error")
+                return
+
             # Check if tag already has data (we want a blank tag)
             try:
                 existing = handler.read_ndef_message(connection)
@@ -445,6 +488,20 @@ class NFCObserver(CardObserver):
                 ndef_message = handler.create_ndef_record(handler.pending_rewrite_url)
 
                 if handler.write_ndef_message(connection, ndef_message):
+                    # Verify the write by reading back
+                    written_url = handler.read_ndef_message(connection)
+                    if written_url != handler.pending_rewrite_url:
+                        # Write appeared to succeed but verification failed
+                        if handler.log_callback:
+                            handler.log_callback("Locked tag - writing prevented", "error")
+                        if handler.update_callback:
+                            handler.update_callback(
+                                handler.pending_original_url,
+                                handler.pending_rewrite_url,
+                                False
+                            )
+                        return
+
                     # Lock the tag
                     handler.lock_tag_permanently(connection)
 

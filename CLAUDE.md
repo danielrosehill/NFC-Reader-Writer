@@ -49,6 +49,7 @@ All TTS files are stored in: `nfc_gui/sounds/`
 - `url_updated.ogg` - "URL updated"
 - `present_tag.ogg` - "Present tag"
 - `outdated_tag_detected.ogg` - "Outdated tag detected"
+- `locked_write_prevented.ogg` - "Locked tag, writing prevented"
 
 ## Update Mode Workflow
 

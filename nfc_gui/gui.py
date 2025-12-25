@@ -893,7 +893,9 @@ class NFCGui(QMainWindow):
     @pyqtSlot(str)
     def on_tag_written(self, message):
         """Handle tag write event (thread-safe slot)"""
-        is_success = "Written" in message or "locked" in message.lower()
+        # Check for locked tag prevention first (must come before general "locked" check)
+        is_locked_prevention = "writing prevented" in message.lower()
+        is_success = "Written" in message and not is_locked_prevention
 
         if is_success:
             if "locked" in message.lower():
@@ -902,12 +904,14 @@ class NFCGui(QMainWindow):
                 self.log_message("Tag written", "success")
             self._play_tts("tag_written")  # Voice announcement
         else:
-            self.log_message("Write failed", "error")
-            if "existing data" in message.lower() or "blocked" in message.lower():
+            if is_locked_prevention:
+                self.log_message("Locked tag - writing prevented", "error")
+                self._play_tts("locked_write_prevented")
+            elif "existing data" in message.lower() or "blocked" in message.lower():
+                self.log_message("Write blocked: tag has existing data", "error")
                 self._play_tts("tag_has_data")
-            elif "locked" in message.lower():
-                self._play_tts("tag_locked")
             else:
+                self.log_message("Write failed", "error")
                 self._play_tts("write_failed")
 
         self._play_beep("write" if is_success else "error")

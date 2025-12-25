@@ -5,7 +5,7 @@ set -e
 # Use this for building packages without installing
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.4.1"
+APP_VERSION="1.4.4"
 BUILD_DIR="build"
 DIST_DIR="dist"
 
@@ -55,6 +55,8 @@ mkdir -p "$DEB_DIR/usr/bin"
 mkdir -p "$DEB_DIR/usr/share/applications"
 mkdir -p "$DEB_DIR/usr/share/$APP_NAME"
 mkdir -p "$DEB_DIR/usr/share/icons/hicolor/48x48/apps"
+mkdir -p "$DEB_DIR/usr/share/icons/hicolor/128x128/apps"
+mkdir -p "$DEB_DIR/usr/share/icons/hicolor/256x256/apps"
 
 # Create control file
 cat > "$DEB_DIR/DEBIAN/control" << EOF
@@ -159,8 +161,10 @@ Categories=Utility;
 Keywords=nfc;reader;writer;tag;
 DESKTOP
 
-# Create simple icon placeholder
-echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > "$DEB_DIR/usr/share/icons/hicolor/48x48/apps/$APP_NAME.png"
+# Copy application icons (multiple sizes for better display quality)
+cp assets/nfc-icon-48.png "$DEB_DIR/usr/share/icons/hicolor/48x48/apps/$APP_NAME.png"
+cp assets/nfc-icon-128.png "$DEB_DIR/usr/share/icons/hicolor/128x128/apps/$APP_NAME.png"
+cp assets/nfc-icon-256.png "$DEB_DIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png"
 
 # Build the .deb package
 DEB_FILE="${DIST_DIR}/${APP_NAME}_${APP_VERSION}_amd64.deb"
