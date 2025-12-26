@@ -1210,6 +1210,7 @@ class NFCGui(QMainWindow):
         """Handle tag write event (thread-safe slot)"""
         # Check for locked tag prevention first (must come before general "locked" check)
         is_locked_prevention = "writing prevented" in message.lower()
+        is_locked_detected = "locked tag detected" in message.lower()
         is_success = "Written" in message and not is_locked_prevention
 
         if is_success:
@@ -1219,7 +1220,12 @@ class NFCGui(QMainWindow):
                 self.log_message("Tag written", "success")
             self._play_tts("tag_written")  # Voice announcement
         else:
-            if is_locked_prevention:
+            if is_locked_detected:
+                # Locked tag without URL
+                self.log_message("Locked tag detected", "error")
+                self._play_tts("tag_locked_detected")
+            elif is_locked_prevention:
+                # Legacy message or edge case
                 self.log_message("Locked tag - writing prevented", "error")
                 self._play_tts("locked_write_prevented")
             elif "existing data" in message.lower() or "blocked" in message.lower():
@@ -1317,12 +1323,15 @@ class NFCGui(QMainWindow):
         # Store the URL
         self.last_url = url
 
+        # Play TTS announcement
+        self.play_sound("tag_url_switch_read")
+
         # Open in browser
         self._open_in_browser(url)
 
         # Switch to read mode
         self.set_read_mode()
-        self.log_message(f"Opened locked tag URL - switched to read mode", "info")
+        self.log_message(f"Tag with URL detected - switched to read mode", "info")
 
     def paste_update_url(self):
         """Paste URL from clipboard into update target input"""
