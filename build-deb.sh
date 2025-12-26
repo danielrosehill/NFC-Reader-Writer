@@ -5,7 +5,7 @@ set -e
 # Use this for building packages without installing
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.4.8"
+APP_VERSION="1.4.9"
 BUILD_DIR="build"
 DIST_DIR="dist"
 

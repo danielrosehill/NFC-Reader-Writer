@@ -364,15 +364,23 @@ class NFCObserver(CardObserver):
         # Check if tag is locked first
         if self.nfc_handler.is_tag_locked(connection):
             # Try to read the URL from the locked tag
+            has_url = False
             try:
                 existing_url = self.nfc_handler.read_ndef_message(connection)
-                if existing_url and self.nfc_handler.locked_tag_callback:
-                    self.nfc_handler.locked_tag_callback(existing_url)
+                if existing_url:
+                    has_url = True
+                    if self.nfc_handler.locked_tag_callback:
+                        self.nfc_handler.locked_tag_callback(existing_url)
             except Exception:
                 pass
 
+            # Different messages based on whether URL was found
             if self.nfc_handler.write_callback:
-                self.nfc_handler.write_callback("Locked tag - writing prevented")
+                if has_url:
+                    # Message will be handled by locked_tag_callback handler
+                    pass
+                else:
+                    self.nfc_handler.write_callback("Locked tag detected")
             return
 
         # Safety: prevent overwriting existing NDEF unless explicitly allowed
