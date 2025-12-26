@@ -5,11 +5,27 @@ Based on ACS ACR1252 USB NFC Reader/Writer
 """
 
 import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QLabel, QPushButton, QTextEdit,
-                             QLineEdit, QCheckBox, QSpinBox, QGroupBox,
-                             QMessageBox, QFrame, QProgressBar, QSystemTrayIcon,
-                             QMenu, QAction, QShortcut)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTextEdit,
+    QLineEdit,
+    QCheckBox,
+    QSpinBox,
+    QGroupBox,
+    QMessageBox,
+    QFrame,
+    QProgressBar,
+    QSystemTrayIcon,
+    QMenu,
+    QAction,
+    QShortcut,
+)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject, pyqtSlot
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QKeySequence
 import pyperclip
@@ -21,11 +37,16 @@ from .settings import Settings
 
 class NFCSignals(QObject):
     """Signal emitter for thread-safe GUI updates"""
+
     tag_read = pyqtSignal(str)  # URL read from tag
     tag_written = pyqtSignal(str)  # Message about write completion
     tag_updated = pyqtSignal(str, str, bool)  # old_url, new_url, success
-    outdated_detected = pyqtSignal(str, str)  # old_url, new_url (when old tag scanned in update mode)
-    update_tag_scanned = pyqtSignal(str, str)  # original_url, suggested_url (empty if no match)
+    outdated_detected = pyqtSignal(
+        str, str
+    )  # old_url, new_url (when old tag scanned in update mode)
+    update_tag_scanned = pyqtSignal(
+        str, str
+    )  # original_url, suggested_url (empty if no match)
     locked_tag_with_url = pyqtSignal(str)  # URL from locked tag in write mode
     log_message = pyqtSignal(str, str)  # message, level
 
@@ -65,9 +86,11 @@ class SettingsDialog(QWidget):
         voice_group = QGroupBox("Voice Announcements")
         voice_layout = QVBoxLayout()
 
-        self.tts_checkbox = QCheckBox("Enable voice announcements (British accent)")
+        self.tts_checkbox = QCheckBox("Enable voice announcements")
         self.tts_checkbox.setChecked(self.settings.tts_enabled)
-        self.tts_checkbox.setToolTip("Announce events like 'Tag opened', 'Batch finished' etc.")
+        self.tts_checkbox.setToolTip(
+            "Play British accent voice announcements for events like 'Tag opened', 'Batch finished', etc."
+        )
         voice_layout.addWidget(self.tts_checkbox)
 
         # Test button
@@ -83,9 +106,13 @@ class SettingsDialog(QWidget):
         write_group = QGroupBox("Write Mode Behavior")
         write_layout = QVBoxLayout()
 
-        self.open_locked_url_checkbox = QCheckBox("Open URL and switch to read mode when locked tag detected")
+        self.open_locked_url_checkbox = QCheckBox(
+            "Auto-switch to read mode when locked tag detected"
+        )
         self.open_locked_url_checkbox.setChecked(self.settings.open_locked_tag_url)
-        self.open_locked_url_checkbox.setToolTip("When in write mode and a locked tag with a URL is presented, open the URL in browser and switch to read mode")
+        self.open_locked_url_checkbox.setToolTip(
+            "In write mode: if a locked tag with a URL is detected, automatically open the URL in browser and switch to read mode"
+        )
         write_layout.addWidget(self.open_locked_url_checkbox)
 
         write_group.setLayout(write_layout)
@@ -97,11 +124,15 @@ class SettingsDialog(QWidget):
 
         self.pattern_input = QLineEdit()
         self.pattern_input.setText(self.settings.source_pattern)
-        self.pattern_input.setPlaceholderText(r"^https?://10\.0\.0\.\d+(?::\d+)?/+item/(.+)$")
+        self.pattern_input.setPlaceholderText(
+            r"^https?://10\.0\.0\.\d+(?::\d+)?/+item/(.+)$"
+        )
         self.pattern_input.textChanged.connect(self.update_test_result)
         pattern_layout.addWidget(self.pattern_input)
 
-        pattern_help = QLabel("Use (.+) to capture the item ID that will be appended to the target URL")
+        pattern_help = QLabel(
+            "Use (.+) to capture the item ID that will be appended to the target URL"
+        )
         pattern_help.setStyleSheet("color: #666; font-size: 11px;")
         pattern_layout.addWidget(pattern_help)
 
@@ -118,7 +149,9 @@ class SettingsDialog(QWidget):
         self.target_input.textChanged.connect(self.update_test_result)
         target_layout.addWidget(self.target_input)
 
-        target_help = QLabel("Item ID will be appended automatically (e.g., https://domain.com/item/{id})")
+        target_help = QLabel(
+            "Item ID will be appended automatically (e.g., https://domain.com/item/{id})"
+        )
         target_help.setStyleSheet("color: #666; font-size: 11px;")
         target_layout.addWidget(target_help)
 
@@ -157,7 +190,9 @@ class SettingsDialog(QWidget):
         button_layout.addWidget(cancel_btn)
 
         save_btn = QPushButton("Save")
-        save_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        save_btn.setStyleSheet(
+            "background-color: #4CAF50; color: white; font-weight: bold;"
+        )
         save_btn.clicked.connect(self.save_settings)
         button_layout.addWidget(save_btn)
 
@@ -180,11 +215,12 @@ class SettingsDialog(QWidget):
             return
 
         import re
+
         try:
             match = re.match(pattern, test_url)
             if match:
                 item_id = match.group(1)
-                target_base = target.rstrip('/') + '/'
+                target_base = target.rstrip("/") + "/"
                 result = f"{target_base}{item_id}"
                 self.result_label.setText(result)
                 self.result_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
@@ -206,11 +242,14 @@ class SettingsDialog(QWidget):
         target = self.target_input.text().strip()
 
         if not pattern or not target:
-            QMessageBox.warning(self, "Warning", "Please fill in both pattern and target URL")
+            QMessageBox.warning(
+                self, "Warning", "Please fill in both pattern and target URL"
+            )
             return
 
         # Validate regex
         import re
+
         try:
             re.compile(pattern)
         except re.error as e:
@@ -247,7 +286,9 @@ class NFCGui(QMainWindow):
         # NFC Handler with settings
         self.nfc_handler = NFCHandler(debug_mode=False, settings=self.settings)
         self.current_mode = "read"
-        self.read_mode_type = "default"  # "default" opens browser, "copy_url" only copies
+        self.read_mode_type = (
+            "default"  # "default" opens browser, "copy_url" only copies
+        )
         self.last_url = None
         self.settings_dialog = None
 
@@ -262,7 +303,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.1")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.2")
         self.setGeometry(100, 100, 800, 500)
 
         # Set modern stylesheet with contemporary design
@@ -459,7 +500,9 @@ class NFCGui(QMainWindow):
 
         self.status_label = QLabel("Initializing...")
         self.status_label.setObjectName("statusLabel")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fbbf24, stop:1 #f59e0b); color: white;")
+        self.status_label.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fbbf24, stop:1 #f59e0b); color: white;"
+        )
         header_layout.addWidget(self.status_label)
 
         # Settings button
@@ -485,7 +528,9 @@ class NFCGui(QMainWindow):
         url_display_layout.setContentsMargins(12, 8, 12, 8)
 
         url_display_header = QLabel("Copied URL:")
-        url_display_header.setStyleSheet("color: #0e7490; font-weight: 600; font-size: 12px; border: none;")
+        url_display_header.setStyleSheet(
+            "color: #0e7490; font-weight: 600; font-size: 12px; border: none;"
+        )
         url_display_layout.addWidget(url_display_header)
 
         self.copied_url_display = QLabel("Present a tag to copy its URL")
@@ -523,7 +568,9 @@ class NFCGui(QMainWindow):
 
         # Original URL display (read-only)
         original_url_header = QLabel("Scanned URL:")
-        original_url_header.setStyleSheet("color: #7e22ce; font-weight: 600; font-size: 12px; border: none;")
+        original_url_header.setStyleSheet(
+            "color: #7e22ce; font-weight: 600; font-size: 12px; border: none;"
+        )
         update_mode_layout.addWidget(original_url_header)
 
         self.update_original_url_display = QLabel("Present a tag to scan")
@@ -538,18 +585,24 @@ class NFCGui(QMainWindow):
                 border-radius: 6px;
             }
         """)
-        self.update_original_url_display.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.update_original_url_display.setTextInteractionFlags(
+            Qt.TextSelectableByMouse
+        )
         self.update_original_url_display.setWordWrap(True)
         update_mode_layout.addWidget(self.update_original_url_display)
 
         # Target URL input (editable, pre-populated with suggestion)
         target_url_header = QLabel("New URL to write:")
-        target_url_header.setStyleSheet("color: #7e22ce; font-weight: 600; font-size: 12px; border: none;")
+        target_url_header.setStyleSheet(
+            "color: #7e22ce; font-weight: 600; font-size: 12px; border: none;"
+        )
         update_mode_layout.addWidget(target_url_header)
 
         target_input_layout = QHBoxLayout()
         self.update_target_url_input = QLineEdit()
-        self.update_target_url_input.setPlaceholderText("Auto-suggestion will appear here, or paste your own URL...")
+        self.update_target_url_input.setPlaceholderText(
+            "Auto-suggestion will appear here, or paste your own URL..."
+        )
         self.update_target_url_input.setStyleSheet("""
             QLineEdit {
                 padding: 10px 12px;
@@ -624,25 +677,33 @@ class NFCGui(QMainWindow):
 
         self.read_btn = QPushButton("Read Mode")
         self.read_btn.setObjectName("readBtn")
-        self.read_btn.setToolTip("Switch to read mode - automatically opens scanned URLs (Ctrl+R)")
+        self.read_btn.setToolTip(
+            "Switch to read mode - automatically opens scanned URLs (Ctrl+R)"
+        )
         self.read_btn.clicked.connect(self.set_read_mode)
         mode_layout.addWidget(self.read_btn)
 
         self.write_btn = QPushButton("Write Mode")
         self.write_btn.setObjectName("writeBtn")
-        self.write_btn.setToolTip("Switch to write mode - write URLs to NFC tags (Ctrl+W)")
+        self.write_btn.setToolTip(
+            "Switch to write mode - write URLs to NFC tags (Ctrl+W)"
+        )
         self.write_btn.clicked.connect(self.set_write_mode)
         mode_layout.addWidget(self.write_btn)
 
         self.copy_url_btn = QPushButton("Copy URL Mode")
         self.copy_url_btn.setObjectName("copyUrlBtn")
-        self.copy_url_btn.setToolTip("Switch to copy URL mode - copies scanned URLs to clipboard without opening (Ctrl+Shift+R)")
+        self.copy_url_btn.setToolTip(
+            "Switch to copy URL mode - copies scanned URLs to clipboard without opening (Ctrl+Shift+R)"
+        )
         self.copy_url_btn.clicked.connect(self.set_copy_url_mode)
         mode_layout.addWidget(self.copy_url_btn)
 
         self.update_btn = QPushButton("Update Mode")
         self.update_btn.setObjectName("updateBtn")
-        self.update_btn.setToolTip("Switch to update mode - rewrites old local URLs to new public format (Ctrl+U)")
+        self.update_btn.setToolTip(
+            "Switch to update mode - rewrites old local URLs to new public format (Ctrl+U)"
+        )
         self.update_btn.clicked.connect(self.set_update_mode)
         mode_layout.addWidget(self.update_btn)
 
@@ -656,7 +717,9 @@ class NFCGui(QMainWindow):
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("Enter URL to write to tag...")
-        self.url_input.textChanged.connect(self._on_url_changed)  # Auto-update on URL change
+        self.url_input.textChanged.connect(
+            self._on_url_changed
+        )  # Auto-update on URL change
         self.url_layout.addWidget(self.url_input, 1)
 
         self.paste_btn = QPushButton("Paste")
@@ -672,13 +735,17 @@ class NFCGui(QMainWindow):
 
         self.lock_checkbox = QCheckBox("Lock tag after writing")
         self.lock_checkbox.setChecked(True)
-        self.lock_checkbox.setToolTip("Lock tag to prevent further writes (recommended for single-use tags)")
+        self.lock_checkbox.setToolTip(
+            "Lock tag to prevent further writes (recommended for single-use tags)"
+        )
         self.lock_checkbox.stateChanged.connect(self._on_write_options_changed)
         self.options_layout.addWidget(self.lock_checkbox)
 
         self.overwrite_checkbox = QCheckBox("Allow overwrite")
         self.overwrite_checkbox.setChecked(False)
-        self.overwrite_checkbox.setToolTip("Allow writing to tags that already contain data")
+        self.overwrite_checkbox.setToolTip(
+            "Allow writing to tags that already contain data"
+        )
         self.overwrite_checkbox.stateChanged.connect(self._on_write_options_changed)
         self.options_layout.addWidget(self.overwrite_checkbox)
 
@@ -697,7 +764,6 @@ class NFCGui(QMainWindow):
         self.batch_spinbox.setToolTip("Number of tags to write with the same URL")
         self.batch_spinbox.valueChanged.connect(self._on_batch_changed)
         self.batch_layout.addWidget(self.batch_spinbox)
-
 
         self.batch_layout.addStretch()
         control_layout.addLayout(self.batch_layout)
@@ -765,7 +831,9 @@ class NFCGui(QMainWindow):
         # Background mode button
         background_btn = QPushButton("Background Read Mode")
         background_btn.setObjectName("secondaryBtn")
-        background_btn.setToolTip("Minimize to tray and continuously read tags in background")
+        background_btn.setToolTip(
+            "Minimize to tray and continuously read tags in background"
+        )
         background_btn.clicked.connect(self.enable_background_mode)
         bottom_layout.addWidget(background_btn)
 
@@ -794,13 +862,13 @@ class NFCGui(QMainWindow):
         """
         # Modern color palette with subtle backgrounds
         styles = {
-            'success': ('color: #166534; background-color: #f0fdf4;', '#22c55e'),
-            'error': ('color: #991b1b; background-color: #fef2f2;', '#ef4444'),
-            'warning': ('color: #9a3412; background-color: #fff7ed;', '#f97316'),
-            'info': ('color: #1e40af; background-color: #eff6ff;', '#3b82f6')
+            "success": ("color: #166534; background-color: #f0fdf4;", "#22c55e"),
+            "error": ("color: #991b1b; background-color: #fef2f2;", "#ef4444"),
+            "warning": ("color: #9a3412; background-color: #fff7ed;", "#f97316"),
+            "info": ("color: #1e40af; background-color: #eff6ff;", "#3b82f6"),
         }
 
-        style, border_color = styles.get(level, styles['info'])
+        style, border_color = styles.get(level, styles["info"])
 
         self.status_message.setStyleSheet(f"""
             QLabel {{
@@ -829,31 +897,48 @@ class NFCGui(QMainWindow):
         try:
             if self.nfc_handler.initialize_reader():
                 self.status_label.setText("Connected")
-                self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
+                self.status_label.setStyleSheet(
+                    "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;"
+                )
                 self.log_message("Reader connected", "success")
 
                 # Start monitoring with signal emitters as callbacks (thread-safe)
                 self.nfc_handler.start_monitoring(
                     read_callback=lambda url: self.signals.tag_read.emit(url),
                     write_callback=lambda msg: self.signals.tag_written.emit(msg),
-                    update_callback=lambda old, new, success: self.signals.tag_updated.emit(old, new, success),
-                    log_callback=lambda msg, level="info": self.signals.log_message.emit(msg, level),
-                    outdated_callback=lambda old, new: self.signals.outdated_detected.emit(old, new),
-                    update_scan_callback=lambda orig, sugg: self.signals.update_tag_scanned.emit(orig, sugg),
-                    locked_tag_callback=lambda url: self.signals.locked_tag_with_url.emit(url)
+                    update_callback=lambda old,
+                    new,
+                    success: self.signals.tag_updated.emit(old, new, success),
+                    log_callback=lambda msg,
+                    level="info": self.signals.log_message.emit(msg, level),
+                    outdated_callback=lambda old,
+                    new: self.signals.outdated_detected.emit(old, new),
+                    update_scan_callback=lambda orig,
+                    sugg: self.signals.update_tag_scanned.emit(orig, sugg),
+                    locked_tag_callback=lambda url: self.signals.locked_tag_with_url.emit(
+                        url
+                    ),
                 )
 
                 # Start in read mode
                 self.set_read_mode()
             else:
                 self.status_label.setText("No Reader")
-                self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ef4444, stop:1 #dc2626); color: white;")
+                self.status_label.setStyleSheet(
+                    "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ef4444, stop:1 #dc2626); color: white;"
+                )
                 self.log_message("No NFC reader found", "error")
                 self._play_tts("no_reader")
-                QMessageBox.critical(self, "Error", "No NFC reader found.\nPlease connect ACS ACR1252 USB reader.")
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    "No NFC reader found.\nPlease connect ACS ACR1252 USB reader.",
+                )
         except Exception as e:
             self.status_label.setText("Error")
-            self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ef4444, stop:1 #dc2626); color: white;")
+            self.status_label.setStyleSheet(
+                "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ef4444, stop:1 #dc2626); color: white;"
+            )
             self.log_message("Failed to connect to reader", "error")
             QMessageBox.critical(self, "Error", f"Failed to initialize reader:\n{e}")
 
@@ -911,12 +996,12 @@ class NFCGui(QMainWindow):
         # If there's already a URL in the input, apply it immediately
         url = self.url_input.text().strip()
         if url:
-            if not url.startswith(('http://', 'https://')):
-                url = 'https://' + url
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
             self.nfc_handler.set_write_mode(
                 url,
                 lock_after_write=self.lock_checkbox.isChecked(),
-                allow_overwrite=self.overwrite_checkbox.isChecked()
+                allow_overwrite=self.overwrite_checkbox.isChecked(),
             )
             self.nfc_handler.batch_total = self.batch_spinbox.value()
             self.nfc_handler.batch_count = 0
@@ -954,7 +1039,11 @@ class NFCGui(QMainWindow):
         """Open the settings dialog"""
         if self.settings_dialog is None or not self.settings_dialog.isVisible():
             # Get reader info
-            reader_info = str(self.nfc_handler.reader) if self.nfc_handler.reader else "No reader connected"
+            reader_info = (
+                str(self.nfc_handler.reader)
+                if self.nfc_handler.reader
+                else "No reader connected"
+            )
             self.settings_dialog = SettingsDialog(self.settings, reader_info, self)
             self.settings_dialog.show()
         else:
@@ -1051,7 +1140,7 @@ class NFCGui(QMainWindow):
                     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                         stop:0 #9333ea, stop:1 #7e22ce);
                 }
-            """
+            """,
         }
 
         # Red underline style
@@ -1092,14 +1181,14 @@ class NFCGui(QMainWindow):
             return
 
         # Add https:// if not present
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
 
         # Update the NFC handler with new URL
         self.nfc_handler.set_write_mode(
             url,
             lock_after_write=self.lock_checkbox.isChecked(),
-            allow_overwrite=self.overwrite_checkbox.isChecked()
+            allow_overwrite=self.overwrite_checkbox.isChecked(),
         )
 
         # Preserve batch settings
@@ -1137,14 +1226,14 @@ class NFCGui(QMainWindow):
         if not url:
             return
 
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
 
         # Update the handler with new options
         self.nfc_handler.set_write_mode(
             url,
             lock_after_write=self.lock_checkbox.isChecked(),
-            allow_overwrite=self.overwrite_checkbox.isChecked()
+            allow_overwrite=self.overwrite_checkbox.isChecked(),
         )
 
     def write_tags(self):
@@ -1156,8 +1245,8 @@ class NFCGui(QMainWindow):
             return
 
         # Add https:// if not present
-        if not url.startswith(('http://', 'https://')):
-            url = 'https://' + url
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
 
         batch_count = self.batch_spinbox.value()
 
@@ -1165,7 +1254,7 @@ class NFCGui(QMainWindow):
         self.nfc_handler.set_write_mode(
             url,
             lock_after_write=self.lock_checkbox.isChecked(),
-            allow_overwrite=self.overwrite_checkbox.isChecked()
+            allow_overwrite=self.overwrite_checkbox.isChecked(),
         )
 
         # Set batch parameters
@@ -1240,17 +1329,29 @@ class NFCGui(QMainWindow):
         # Update batch progress
         if self.nfc_handler.batch_total > 1:
             # Update progress bar and label
-            progress_percentage = int((self.nfc_handler.batch_count / self.nfc_handler.batch_total) * 100)
+            progress_percentage = int(
+                (self.nfc_handler.batch_count / self.nfc_handler.batch_total) * 100
+            )
             self.progress_bar.setValue(progress_percentage)
-            self.progress_label.setText(f"Tag {self.nfc_handler.batch_count} of {self.nfc_handler.batch_total}")
+            self.progress_label.setText(
+                f"Tag {self.nfc_handler.batch_count} of {self.nfc_handler.batch_total}"
+            )
 
             if self.nfc_handler.batch_count < self.nfc_handler.batch_total:
-                self.log_message(f"Present tag {self.nfc_handler.batch_count + 1} of {self.nfc_handler.batch_total}")
+                self.log_message(
+                    f"Present tag {self.nfc_handler.batch_count + 1} of {self.nfc_handler.batch_total}"
+                )
             else:
                 self.log_message("All tags written", "success")
                 self.progress_group.setVisible(False)  # Hide progress after completion
-                self._play_tts("batch_finished")  # Voice announcement for batch complete
-                QMessageBox.information(self, "Success", f"Successfully wrote {self.nfc_handler.batch_total} tags")
+                self._play_tts(
+                    "batch_finished"
+                )  # Voice announcement for batch complete
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"Successfully wrote {self.nfc_handler.batch_total} tags",
+                )
 
     @pyqtSlot(str, str)
     def on_outdated_detected(self, old_url, new_url):
@@ -1261,7 +1362,9 @@ class NFCGui(QMainWindow):
 
         # Update status to show we're waiting for a new tag
         self.status_label.setText("PRESENT NEW TAG")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f97316, stop:1 #ea580c); color: white;")
+        self.status_label.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f97316, stop:1 #ea580c); color: white;"
+        )
 
     @pyqtSlot(str, str, bool)
     def on_tag_updated(self, old_url, new_url, success):
@@ -1274,7 +1377,9 @@ class NFCGui(QMainWindow):
 
             # Reset UI for next update
             self.status_label.setText("Connected")
-            self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
+            self.status_label.setStyleSheet(
+                "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;"
+            )
             self.update_original_url_display.setText("Present a tag to scan")
             self.update_target_url_input.clear()
             self.update_target_url_input.setEnabled(False)
@@ -1301,7 +1406,9 @@ class NFCGui(QMainWindow):
         # Pre-populate target input with suggestion (if available)
         if suggested_url:
             self.update_target_url_input.setText(suggested_url)
-            self.log_message("URL matched - suggestion ready, edit or confirm", "success")
+            self.log_message(
+                "URL matched - suggestion ready, edit or confirm", "success"
+            )
             self._play_tts("url_validated")
         else:
             self.update_target_url_input.clear()
@@ -1354,8 +1461,8 @@ class NFCGui(QMainWindow):
             return
 
         # Add https:// if not present
-        if not target_url.startswith(('http://', 'https://')):
-            target_url = 'https://' + target_url
+        if not target_url.startswith(("http://", "https://")):
+            target_url = "https://" + target_url
             self.update_target_url_input.setText(target_url)
 
         # Store the confirmed URL and advance handler to write step
@@ -1366,7 +1473,9 @@ class NFCGui(QMainWindow):
 
         # Update UI to show we're ready for new tag
         self.status_label.setText("PRESENT NEW TAG")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f97316, stop:1 #ea580c); color: white;")
+        self.status_label.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f97316, stop:1 #ea580c); color: white;"
+        )
         self.log_message("Present a blank tag to write", "info")
         self._play_tts("present_tag")
 
@@ -1380,7 +1489,9 @@ class NFCGui(QMainWindow):
 
         # Reset UI
         self.status_label.setText("Connected")
-        self.status_label.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;")
+        self.status_label.setStyleSheet(
+            "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #22c55e, stop:1 #16a34a); color: white;"
+        )
         self.update_original_url_display.setText("Present a tag to scan")
         self.update_target_url_input.clear()
         self.update_target_url_input.setEnabled(False)
@@ -1396,7 +1507,9 @@ class NFCGui(QMainWindow):
                 self.log_message("URL copied to clipboard", "success")
             except Exception as e:
                 self.log_message("Failed to copy to clipboard", "error")
-                QMessageBox.critical(self, "Error", f"Failed to copy to clipboard:\n{e}")
+                QMessageBox.critical(
+                    self, "Error", f"Failed to copy to clipboard:\n{e}"
+                )
         else:
             self.log_message("No URL to copy - read a tag first", "warning")
             QMessageBox.warning(self, "Warning", "No URL to copy - read a tag first")
@@ -1411,13 +1524,25 @@ class NFCGui(QMainWindow):
     def _open_in_browser(self, url: str):
         """Open URL in Chrome (or fallback browser)"""
         try:
-            subprocess.Popen(['google-chrome', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(
+                ["google-chrome", url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except FileNotFoundError:
             try:
-                subprocess.Popen(['chromium-browser', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(
+                    ["chromium-browser", url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             except FileNotFoundError:
                 try:
-                    subprocess.Popen(['xdg-open', url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.Popen(
+                        ["xdg-open", url],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
                 except Exception as e:
                     self.log_message(f"Failed to open browser: {e}", "error")
 
@@ -1434,21 +1559,34 @@ class NFCGui(QMainWindow):
                 # Single short beep for successful read
                 sound = "/usr/share/sounds/freedesktop/stereo/message.oga"
                 if os.path.exists(sound):
-                    subprocess.Popen(['paplay', sound], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.Popen(
+                        ["paplay", sound],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
             elif beep_type == "write":
                 # Two-tone success beep for write & lock
                 sound1 = "/usr/share/sounds/freedesktop/stereo/message.oga"
                 sound2 = "/usr/share/sounds/freedesktop/stereo/complete.oga"
                 if os.path.exists(sound1) and os.path.exists(sound2):
-                    subprocess.Popen(['paplay', sound1], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     subprocess.Popen(
-                        ['bash', '-c', f'sleep 0.15 && paplay {sound2}'],
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        ["paplay", sound1],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    subprocess.Popen(
+                        ["bash", "-c", f"sleep 0.15 && paplay {sound2}"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
             elif beep_type == "error":
                 sound = "/usr/share/sounds/freedesktop/stereo/dialog-error.oga"
                 if os.path.exists(sound):
-                    subprocess.Popen(['paplay', sound], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.Popen(
+                        ["paplay", sound],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
         except Exception:
             pass
 
@@ -1463,11 +1601,15 @@ class NFCGui(QMainWindow):
 
         try:
             # Get the sounds directory relative to this module
-            sounds_dir = os.path.join(os.path.dirname(__file__), 'sounds')
+            sounds_dir = os.path.join(os.path.dirname(__file__), "sounds")
             sound_file = os.path.join(sounds_dir, f"{announcement}.ogg")
 
             if os.path.exists(sound_file):
-                subprocess.Popen(['paplay', sound_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(
+                    ["paplay", sound_file],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
         except Exception:
             pass
 
@@ -1524,6 +1666,7 @@ class NFCGui(QMainWindow):
         pixmap.fill(Qt.transparent)
 
         from PyQt5.QtGui import QPainter, QColor
+
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -1537,7 +1680,7 @@ class NFCGui(QMainWindow):
 
     def tray_icon_activated(self, reason):
         """Handle tray icon activation (click)"""
-        if reason == QSystemTrayIcon.DoubleClick:
+        if reason == QSystemTrayIcon.Trigger or reason == QSystemTrayIcon.DoubleClick:
             self.show_window()
 
     def show_window(self):
@@ -1553,7 +1696,7 @@ class NFCGui(QMainWindow):
             "NFC Reader/Writer",
             "Application minimized to system tray. Double-click icon to restore.",
             QSystemTrayIcon.Information,
-            2000
+            2000,
         )
 
     def enable_background_mode(self):
@@ -1572,7 +1715,7 @@ class NFCGui(QMainWindow):
                 "Background Read Mode",
                 "NFC reader is now in continuous read mode. Present tags to auto-open URLs.",
                 QSystemTrayIcon.Information,
-                3000
+                3000,
             )
             self.log_message("Background mode active", "success")
             self._play_tts("background_mode")  # Voice announcement
@@ -1583,16 +1726,19 @@ class NFCGui(QMainWindow):
                 "Background Read Mode",
                 "Background read mode disabled.",
                 QSystemTrayIcon.Information,
-                2000
+                2000,
             )
             self.log_message("Background mode off")
 
     def quit_application(self):
         """Quit the application completely"""
-        reply = QMessageBox.question(self, 'Quit',
-                                     'Do you want to quit the NFC Reader/Writer?',
-                                     QMessageBox.Yes | QMessageBox.No,
-                                     QMessageBox.No)
+        reply = QMessageBox.question(
+            self,
+            "Quit",
+            "Do you want to quit the NFC Reader/Writer?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
 
         if reply == QMessageBox.Yes:
             self._play_tts("closing")  # Farewell announcement
@@ -1600,6 +1746,7 @@ class NFCGui(QMainWindow):
             self.tray_icon.hide()
             # Brief delay to let the TTS play
             from PyQt5.QtCore import QTimer
+
             QTimer.singleShot(1500, QApplication.quit)
 
     def closeEvent(self, event):
@@ -1615,7 +1762,7 @@ class NFCGui(QMainWindow):
 def main():
     """Main entry point"""
     app = QApplication(sys.argv)
-    app.setStyle('Fusion')  # Modern cross-platform style
+    app.setStyle("Fusion")  # Modern cross-platform style
     window = NFCGui()
     window.show()
     sys.exit(app.exec_())
