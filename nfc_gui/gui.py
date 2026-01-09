@@ -303,7 +303,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.2")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.10")
         self.setGeometry(100, 100, 800, 500)
 
         # Set modern stylesheet with contemporary design
@@ -757,13 +757,30 @@ class NFCGui(QMainWindow):
         self.batch_label = QLabel("Batch count:")
         self.batch_layout.addWidget(self.batch_label)
 
+        # Minus button
+        self.batch_minus_btn = QPushButton("−")
+        self.batch_minus_btn.setFixedSize(32, 32)
+        self.batch_minus_btn.setToolTip("Decrease batch count")
+        self.batch_minus_btn.clicked.connect(self._decrease_batch)
+        self.batch_layout.addWidget(self.batch_minus_btn)
+
         self.batch_spinbox = QSpinBox()
         self.batch_spinbox.setMinimum(1)
         self.batch_spinbox.setMaximum(100)
         self.batch_spinbox.setValue(1)
         self.batch_spinbox.setToolTip("Number of tags to write with the same URL")
         self.batch_spinbox.valueChanged.connect(self._on_batch_changed)
+        self.batch_spinbox.setButtonSymbols(QSpinBox.NoButtons)  # Hide built-in arrows
+        self.batch_spinbox.setFixedWidth(50)
+        self.batch_spinbox.setAlignment(Qt.AlignCenter)
         self.batch_layout.addWidget(self.batch_spinbox)
+
+        # Plus button
+        self.batch_plus_btn = QPushButton("+")
+        self.batch_plus_btn.setFixedSize(32, 32)
+        self.batch_plus_btn.setToolTip("Increase batch count")
+        self.batch_plus_btn.clicked.connect(self._increase_batch)
+        self.batch_layout.addWidget(self.batch_plus_btn)
 
         self.batch_layout.addStretch()
         control_layout.addLayout(self.batch_layout)
@@ -1063,7 +1080,9 @@ class NFCGui(QMainWindow):
 
         # Batch controls
         self.batch_label.setVisible(visible)
+        self.batch_minus_btn.setVisible(visible)
         self.batch_spinbox.setVisible(visible)
+        self.batch_plus_btn.setVisible(visible)
 
     def _update_mode_indicator(self, active_button):
         """Update the red underline indicator on mode buttons"""
@@ -1217,6 +1236,18 @@ class NFCGui(QMainWindow):
         else:
             self.progress_group.setVisible(False)
 
+    def _decrease_batch(self):
+        """Decrease batch count by 1"""
+        current = self.batch_spinbox.value()
+        if current > self.batch_spinbox.minimum():
+            self.batch_spinbox.setValue(current - 1)
+
+    def _increase_batch(self):
+        """Increase batch count by 1"""
+        current = self.batch_spinbox.value()
+        if current < self.batch_spinbox.maximum():
+            self.batch_spinbox.setValue(current + 1)
+
     def _on_write_options_changed(self):
         """Handle lock/overwrite checkbox changes - auto-update write mode configuration"""
         if self.current_mode != "write":
@@ -1326,8 +1357,8 @@ class NFCGui(QMainWindow):
 
         self._play_beep("write" if is_success else "error")
 
-        # Update batch progress
-        if self.nfc_handler.batch_total > 1:
+        # Update batch progress only on success
+        if self.nfc_handler.batch_total > 1 and is_success:
             # Update progress bar and label
             progress_percentage = int(
                 (self.nfc_handler.batch_count / self.nfc_handler.batch_total) * 100
