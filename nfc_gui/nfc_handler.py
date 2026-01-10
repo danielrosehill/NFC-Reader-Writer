@@ -419,9 +419,9 @@ class NFCObserver(CardObserver):
             ndef_message = self.nfc_handler.create_ndef_record(self.nfc_handler.url_to_write)
 
             if self.nfc_handler.write_ndef_message(connection, ndef_message):
-                # Verify the write by reading back and comparing
-                written_url = self.nfc_handler.read_ndef_message(connection)
-                if written_url != self.nfc_handler.url_to_write:
+                # Quick verify to catch locked tags that appear to write successfully
+                quick_verify_url = self.nfc_handler.read_ndef_message(connection)
+                if quick_verify_url != self.nfc_handler.url_to_write:
                     # Write appeared to succeed but verification failed (likely locked)
                     if self.nfc_handler.write_callback:
                         self.nfc_handler.write_callback("Locked tag - writing prevented")
@@ -434,6 +434,15 @@ class NFCObserver(CardObserver):
                         success_msg += " & locked"
                     else:
                         success_msg += " (lock failed)"
+
+                # Perform delayed verification if enabled
+                if self.nfc_handler.settings and self.nfc_handler.settings.verify_after_write:
+                    time.sleep(1.0)  # Wait for tag to settle
+                    verified_url = self.nfc_handler.read_ndef_message(connection)
+                    if verified_url == self.nfc_handler.url_to_write:
+                        success_msg += " & verified"
+                    else:
+                        success_msg += " (verification failed)"
 
                 if self.nfc_handler.write_callback:
                     self.nfc_handler.write_callback(success_msg)

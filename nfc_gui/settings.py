@@ -25,6 +25,7 @@ class Settings:
         self.target_base_url: str = self.DEFAULT_TARGET
         self.tts_enabled: bool = True  # Voice announcements enabled by default
         self.open_locked_tag_url: bool = False  # Open URL and switch to read mode when locked tag detected in write mode
+        self.verify_after_write: bool = True  # Verify writes by reading back and comparing
         self.load()
 
     def load(self) -> None:
@@ -37,6 +38,7 @@ class Settings:
                     self.target_base_url = data.get('target_base_url', self.DEFAULT_TARGET)
                     self.tts_enabled = data.get('tts_enabled', True)
                     self.open_locked_tag_url = data.get('open_locked_tag_url', False)
+                    self.verify_after_write = data.get('verify_after_write', True)
             except (json.JSONDecodeError, IOError):
                 # Use defaults if file is corrupted
                 pass
@@ -50,7 +52,8 @@ class Settings:
                     'source_pattern': self.source_pattern,
                     'target_base_url': self.target_base_url,
                     'tts_enabled': self.tts_enabled,
-                    'open_locked_tag_url': self.open_locked_tag_url
+                    'open_locked_tag_url': self.open_locked_tag_url,
+                    'verify_after_write': self.verify_after_write
                 }, f, indent=2)
             return True
         except IOError:
