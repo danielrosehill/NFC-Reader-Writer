@@ -310,6 +310,37 @@ class NFCHandler:
         self.pending_rewrite_url = None
         self.pending_original_url = None
 
+    def _is_valid_url(self, data: str) -> bool:
+        """Check if the data is a valid URL (starts with http:// or https://)
+
+        This prevents false positives from garbage data on tags being
+        interpreted as "existing data" by the NDEF library.
+        """
+        if not data or not isinstance(data, str):
+            return False
+        data = data.strip()
+        # Only consider it valid data if it looks like a real URL
+        return data.startswith(('http://', 'https://'))
+
+    def _has_ndef_content(self, connection: CardConnection) -> Tuple[bool, Optional[str]]:
+        """Check if tag has meaningful NDEF content
+
+        Returns (has_content, url_or_none)
+        - has_content: True if tag has valid NDEF URL/text data
+        - url_or_none: The URL if found and valid, None otherwise
+
+        This is more strict than read_ndef_message - it validates that
+        any found data is actually a valid URL to prevent false positives
+        from garbage/residual data on tags.
+        """
+        try:
+            url = self.read_ndef_message(connection)
+            if url and self._is_valid_url(url):
+                return (True, url)
+            return (False, None)
+        except Exception:
+            return (False, None)
+
 
 class NFCObserver(CardObserver):
     def __init__(self, nfc_handler):
@@ -364,32 +395,22 @@ class NFCObserver(CardObserver):
         # Check if tag is locked first
         if self.nfc_handler.is_tag_locked(connection):
             # Try to read the URL from the locked tag
-            has_url = False
-            try:
-                existing_url = self.nfc_handler.read_ndef_message(connection)
-                if existing_url:
-                    has_url = True
-                    if self.nfc_handler.locked_tag_callback:
-                        self.nfc_handler.locked_tag_callback(existing_url)
-            except Exception:
-                pass
-
-            # Different messages based on whether URL was found
-            if self.nfc_handler.write_callback:
-                if has_url:
-                    # Message will be handled by locked_tag_callback handler
-                    pass
-                else:
+            has_url, existing_url = self.nfc_handler._has_ndef_content(connection)
+            if has_url and existing_url:
+                if self.nfc_handler.locked_tag_callback:
+                    self.nfc_handler.locked_tag_callback(existing_url)
+            else:
+                # Locked tag without valid URL
+                if self.nfc_handler.write_callback:
                     self.nfc_handler.write_callback("Locked tag detected")
             return
 
         # Safety: prevent overwriting existing NDEF unless explicitly allowed
-        try:
-            existing = self.nfc_handler.read_ndef_message(connection)
-        except Exception:
-            existing = None
+        # Use stricter check that validates URL format to prevent false positives
+        # from garbage/residual data on tags
+        has_existing, existing_url = self.nfc_handler._has_ndef_content(connection)
 
-        if existing and not self.nfc_handler.allow_overwrite:
+        if has_existing and not self.nfc_handler.allow_overwrite:
             if self.nfc_handler.write_callback:
                 self.nfc_handler.write_callback("Write blocked: tag has existing data")
             return
@@ -480,13 +501,11 @@ class NFCObserver(CardObserver):
                     handler.log_callback("Locked tag - writing prevented", "error")
                 return
 
-            # Check if tag already has data (we want a blank tag)
-            try:
-                existing = handler.read_ndef_message(connection)
-            except Exception:
-                existing = None
+            # Check if tag already has valid URL data (we want a blank tag)
+            # Use stricter check to prevent false positives from garbage data
+            has_existing, _ = handler._has_ndef_content(connection)
 
-            if existing:
+            if has_existing:
                 if handler.log_callback:
                     handler.log_callback("Tag has data - use blank tag", "warning")
                 return
