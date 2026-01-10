@@ -121,19 +121,6 @@ class NFCHandler:
             return bytes(response)
         return None
 
-    def is_tag_locked(self, connection: CardConnection) -> bool:
-        """Check if tag has lock bits set (pages 3-15 locked)"""
-        try:
-            page2 = self._pcsc_read_page(connection, 2)
-            if page2 and len(page2) == 4:
-                # Bytes 2 and 3 of page 2 are the static lock bytes
-                # If they're 0xFF, pages 3-15 are locked
-                if page2[2] == 0xFF and page2[3] == 0xFF:
-                    return True
-            return False
-        except Exception:
-            return False
-
     def _verify_write(self, connection: CardConnection, page: int, expected: bytes) -> bool:
         """Verify a page was written correctly by reading it back"""
         try:
@@ -480,19 +467,6 @@ class NFCObserver(CardObserver):
         if not self.nfc_handler.url_to_write:
             return
 
-        # Check if tag is locked first
-        if self.nfc_handler.is_tag_locked(connection):
-            # Try to read the URL from the locked tag
-            has_url, existing_url = self.nfc_handler._has_ndef_content(connection)
-            if has_url and existing_url:
-                if self.nfc_handler.locked_tag_callback:
-                    self.nfc_handler.locked_tag_callback(existing_url)
-            else:
-                # Locked tag without valid URL
-                if self.nfc_handler.write_callback:
-                    self.nfc_handler.write_callback("Locked tag detected")
-            return
-
         # Safety: prevent overwriting existing NDEF unless explicitly allowed
         # Use stricter check that validates URL format to prevent false positives
         # from garbage/residual data on tags
@@ -596,12 +570,6 @@ class NFCObserver(CardObserver):
                 if handler.log_callback:
                     handler.log_callback("No pending URL - scan old tag first", "error")
                 handler.update_step = "scan_old"
-                return
-
-            # Check if tag is locked first
-            if handler.is_tag_locked(connection):
-                if handler.log_callback:
-                    handler.log_callback("Locked tag - writing prevented", "error")
                 return
 
             # Check if tag already has valid URL data (we want a blank tag)
