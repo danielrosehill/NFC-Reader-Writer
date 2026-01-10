@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QAction,
     QShortcut,
+    QToolButton,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject, pyqtSlot
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QKeySequence
@@ -691,21 +692,46 @@ class NFCGui(QMainWindow):
         self.write_btn.clicked.connect(self.set_write_mode)
         mode_layout.addWidget(self.write_btn)
 
-        self.copy_url_btn = QPushButton("Copy URL Mode")
-        self.copy_url_btn.setObjectName("copyUrlBtn")
-        self.copy_url_btn.setToolTip(
-            "Switch to copy URL mode - copies scanned URLs to clipboard without opening (Ctrl+Shift+R)"
-        )
-        self.copy_url_btn.clicked.connect(self.set_copy_url_mode)
-        mode_layout.addWidget(self.copy_url_btn)
+        # Other Modes dropdown menu
+        self.other_modes_btn = QToolButton()
+        self.other_modes_btn.setText("Other Modes")
+        self.other_modes_btn.setObjectName("otherModesBtn")
+        self.other_modes_btn.setPopupMode(QToolButton.InstantPopup)
+        self.other_modes_btn.setToolTip("Additional modes: Copy URL, Update")
 
-        self.update_btn = QPushButton("Update Mode")
-        self.update_btn.setObjectName("updateBtn")
-        self.update_btn.setToolTip(
-            "Switch to update mode - rewrites old local URLs to new public format (Ctrl+U)"
+        other_modes_menu = QMenu(self.other_modes_btn)
+        other_modes_menu.setStyleSheet("""
+            QMenu {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 8px 16px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #f1f5f9;
+            }
+        """)
+
+        self.copy_url_action = QAction("Copy URL Mode (Ctrl+Shift+R)", self)
+        self.copy_url_action.setToolTip(
+            "Copies scanned URLs to clipboard without opening browser"
         )
-        self.update_btn.clicked.connect(self.set_update_mode)
-        mode_layout.addWidget(self.update_btn)
+        self.copy_url_action.triggered.connect(self.set_copy_url_mode)
+        other_modes_menu.addAction(self.copy_url_action)
+
+        self.update_action = QAction("Update Mode (Ctrl+U)", self)
+        self.update_action.setToolTip(
+            "Rewrites old local URLs to new public format"
+        )
+        self.update_action.triggered.connect(self.set_update_mode)
+        other_modes_menu.addAction(self.update_action)
+
+        self.other_modes_btn.setMenu(other_modes_menu)
+        mode_layout.addWidget(self.other_modes_btn)
 
         mode_layout.addStretch()
         control_layout.addLayout(mode_layout)
@@ -748,6 +774,14 @@ class NFCGui(QMainWindow):
         )
         self.overwrite_checkbox.stateChanged.connect(self._on_write_options_changed)
         self.options_layout.addWidget(self.overwrite_checkbox)
+
+        self.verify_checkbox = QCheckBox("Verify after write")
+        self.verify_checkbox.setChecked(self.settings.verify_after_write)
+        self.verify_checkbox.setToolTip(
+            "Read tag back after writing to verify the URL was correctly written"
+        )
+        self.verify_checkbox.stateChanged.connect(self._on_verify_option_changed)
+        self.options_layout.addWidget(self.verify_checkbox)
 
         self.options_layout.addStretch()
         control_layout.addLayout(self.options_layout)
@@ -984,7 +1018,7 @@ class NFCGui(QMainWindow):
         self.log_message("Copy URL mode - present NFC tag to copy URL")
 
         # Update mode indicator (red underline on active button)
-        self._update_mode_indicator(self.copy_url_btn)
+        self._update_mode_indicator(self.other_modes_btn)
 
         # Hide write-mode controls and update mode, show URL display
         self._toggle_write_controls(False)
@@ -1036,7 +1070,7 @@ class NFCGui(QMainWindow):
         self.log_message("Present a tag to scan its URL")
 
         # Update mode indicator (red underline on active button)
-        self._update_mode_indicator(self.update_btn)
+        self._update_mode_indicator(self.other_modes_btn)
 
         # Hide write-mode controls and copy URL display
         self._toggle_write_controls(False)
@@ -1077,6 +1111,7 @@ class NFCGui(QMainWindow):
         # Options controls
         self.lock_checkbox.setVisible(visible)
         self.overwrite_checkbox.setVisible(visible)
+        self.verify_checkbox.setVisible(visible)
 
         # Batch controls
         self.batch_label.setVisible(visible)
@@ -1124,43 +1159,32 @@ class NFCGui(QMainWindow):
                         stop:0 #2563eb, stop:1 #1d4ed8);
                 }
             """,
-            self.copy_url_btn: """
-                QPushButton {
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 #06b6d4, stop:1 #0891b2);
-                    color: white;
-                    min-width: 140px;
-                    padding: 10px 20px;
-                    border-radius: 8px;
-                    font-weight: 600;
-                    font-size: 13px;
-                    border: none;
-                    %s
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 #0891b2, stop:1 #0e7490);
-                }
-            """,
-            self.update_btn: """
-                QPushButton {
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 #a855f7, stop:1 #9333ea);
-                    color: white;
-                    min-width: 140px;
-                    padding: 10px 20px;
-                    border-radius: 8px;
-                    font-weight: 600;
-                    font-size: 13px;
-                    border: none;
-                    %s
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                        stop:0 #9333ea, stop:1 #7e22ce);
-                }
-            """,
         }
+
+        # Other Modes button style (uses QToolButton)
+        other_modes_style = """
+            QToolButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #64748b, stop:1 #475569);
+                color: white;
+                min-width: 120px;
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 13px;
+                border: none;
+                %s
+            }
+            QToolButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #475569, stop:1 #334155);
+            }
+            QToolButton::menu-indicator {
+                image: none;
+                subcontrol-position: right center;
+                padding-right: 4px;
+            }
+        """
 
         # Red underline style
         underline = "border-bottom: 3px solid #ef4444;"
@@ -1170,6 +1194,12 @@ class NFCGui(QMainWindow):
                 btn.setStyleSheet(style_template % underline)
             else:
                 btn.setStyleSheet(style_template % "")
+
+        # Handle Other Modes button separately (it's a QToolButton)
+        if active_button == self.other_modes_btn:
+            self.other_modes_btn.setStyleSheet(other_modes_style % underline)
+        else:
+            self.other_modes_btn.setStyleSheet(other_modes_style % "")
 
     def paste_url(self):
         """Paste URL from clipboard and prepare for writing"""
@@ -1296,6 +1326,11 @@ class NFCGui(QMainWindow):
             allow_overwrite=self.overwrite_checkbox.isChecked(),
         )
 
+    def _on_verify_option_changed(self):
+        """Handle verify checkbox change - save to settings"""
+        self.settings.verify_after_write = self.verify_checkbox.isChecked()
+        self.settings.save()
+
     def write_tags(self):
         """Write URL to tag(s)"""
         url = self.url_input.text().strip()
@@ -1363,11 +1398,31 @@ class NFCGui(QMainWindow):
         is_success = "Written" in message and not is_locked_prevention
 
         if is_success:
-            if "locked" in message.lower():
-                self.log_message("Tag written and locked", "success")
+            # Parse verification status
+            is_verified = "verified" in message.lower() and "failed" not in message.lower()
+            verification_failed = "verification failed" in message.lower()
+
+            # Build status message
+            if "locked" in message.lower() and "prevention" not in message.lower():
+                if is_verified:
+                    self.log_message("Tag written, locked & verified", "success")
+                elif verification_failed:
+                    self.log_message("Tag written & locked (verification failed)", "warning")
+                else:
+                    self.log_message("Tag written and locked", "success")
             else:
-                self.log_message("Tag written", "success")
-            self._play_tts("tag_written")  # Voice announcement
+                if is_verified:
+                    self.log_message("Tag written & verified", "success")
+                elif verification_failed:
+                    self.log_message("Tag written (verification failed)", "warning")
+                else:
+                    self.log_message("Tag written", "success")
+
+            # Play TTS - use verified sound if verification passed
+            if is_verified:
+                self._play_tts("write_verified")
+            else:
+                self._play_tts("tag_written")
         else:
             if is_locked_detected:
                 # Locked tag without URL
@@ -1407,6 +1462,9 @@ class NFCGui(QMainWindow):
                 self._play_tts(
                     "batch_finished"
                 )  # Voice announcement for batch complete
+                # Reset batch counter for next batch session
+                self.nfc_handler.batch_count = 0
+                self.progress_bar.setValue(0)
                 QMessageBox.information(
                     self,
                     "Success",
