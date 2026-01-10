@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Tray icon for Update Mode - Sync/Refresh arrows -->
+
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#a855f7"/>
+
+  <!-- Circular arrow - top -->
+  <path d="M 32 14 A 18 18 0 1 1 14 32"
+        fill="none"
+        stroke="#ffffff"
+        stroke-width="5"
+        stroke-linecap="round"/>
+
+  <!-- Arrow head - top -->
+  <polygon points="14,24 14,38 24,32" fill="#ffffff"/>
+
+  <!-- Circular arrow - bottom -->
+  <path d="M 32 50 A 18 18 0 1 1 50 32"
+        fill="none"
+        stroke="#ffffff"
+        stroke-width="5"
+        stroke-linecap="round"/>
+
+  <!-- Arrow head - bottom -->
+  <polygon points="50,40 50,26 40,32" fill="#ffffff"/>
+</svg>

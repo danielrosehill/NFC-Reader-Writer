@@ -25,7 +25,6 @@ from PyQt5.QtWidgets import (
     QMenu,
     QAction,
     QShortcut,
-    QToolButton,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject, pyqtSlot
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QKeySequence
@@ -102,6 +101,22 @@ class SettingsDialog(QWidget):
 
         voice_group.setLayout(voice_layout)
         layout.addWidget(voice_group)
+
+        # Read mode behavior section
+        read_group = QGroupBox("Read Mode Behavior")
+        read_layout = QVBoxLayout()
+
+        self.auto_open_browser_checkbox = QCheckBox(
+            "Auto-open URLs in browser"
+        )
+        self.auto_open_browser_checkbox.setChecked(self.settings.auto_open_browser)
+        self.auto_open_browser_checkbox.setToolTip(
+            "When enabled, scanned URLs are automatically opened in browser. When disabled, URLs are only copied to clipboard."
+        )
+        read_layout.addWidget(self.auto_open_browser_checkbox)
+
+        read_group.setLayout(read_layout)
+        layout.addWidget(read_group)
 
         # Write mode behavior section
         write_group = QGroupBox("Write Mode Behavior")
@@ -259,6 +274,7 @@ class SettingsDialog(QWidget):
 
         self.settings.set_rewrite_rule(pattern, target)
         self.settings.tts_enabled = self.tts_checkbox.isChecked()
+        self.settings.auto_open_browser = self.auto_open_browser_checkbox.isChecked()
         self.settings.open_locked_tag_url = self.open_locked_url_checkbox.isChecked()
         if self.settings.save():
             QMessageBox.information(self, "Success", "Settings saved successfully")
@@ -287,9 +303,6 @@ class NFCGui(QMainWindow):
         # NFC Handler with settings
         self.nfc_handler = NFCHandler(debug_mode=False, settings=self.settings)
         self.current_mode = "read"
-        self.read_mode_type = (
-            "default"  # "default" opens browser, "copy_url" only copies
-        )
         self.last_url = None
         self.settings_dialog = None
 
@@ -304,8 +317,8 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.11")
-        self.setGeometry(100, 100, 800, 500)
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.13")
+        self.setGeometry(100, 100, 800, 520)
 
         # Set modern stylesheet with contemporary design
         self.setStyleSheet("""
@@ -344,27 +357,21 @@ class NFCGui(QMainWindow):
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 #22c55e, stop:1 #16a34a);
                 color: white;
-                min-width: 140px;
+                min-width: 150px;
+                padding: 12px 24px;
+                font-size: 14px;
             }
             QPushButton#readBtn:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 #16a34a, stop:1 #15803d);
             }
-            QPushButton#copyUrlBtn {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #06b6d4, stop:1 #0891b2);
-                color: white;
-                min-width: 140px;
-            }
-            QPushButton#copyUrlBtn:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #0891b2, stop:1 #0e7490);
-            }
             QPushButton#writeBtn {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 #3b82f6, stop:1 #2563eb);
                 color: white;
-                min-width: 140px;
+                min-width: 150px;
+                padding: 12px 24px;
+                font-size: 14px;
             }
             QPushButton#writeBtn:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -374,7 +381,9 @@ class NFCGui(QMainWindow):
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 #a855f7, stop:1 #9333ea);
                 color: white;
-                min-width: 140px;
+                min-width: 150px;
+                padding: 12px 24px;
+                font-size: 14px;
             }
             QPushButton#updateBtn:hover {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -692,46 +701,13 @@ class NFCGui(QMainWindow):
         self.write_btn.clicked.connect(self.set_write_mode)
         mode_layout.addWidget(self.write_btn)
 
-        # Other Modes dropdown menu
-        self.other_modes_btn = QToolButton()
-        self.other_modes_btn.setText("Other Modes")
-        self.other_modes_btn.setObjectName("otherModesBtn")
-        self.other_modes_btn.setPopupMode(QToolButton.InstantPopup)
-        self.other_modes_btn.setToolTip("Additional modes: Copy URL, Update")
-
-        other_modes_menu = QMenu(self.other_modes_btn)
-        other_modes_menu.setStyleSheet("""
-            QMenu {
-                background-color: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 4px;
-            }
-            QMenu::item {
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: #f1f5f9;
-            }
-        """)
-
-        self.copy_url_action = QAction("Copy URL Mode (Ctrl+Shift+R)", self)
-        self.copy_url_action.setToolTip(
-            "Copies scanned URLs to clipboard without opening browser"
+        self.update_btn = QPushButton("Update Mode")
+        self.update_btn.setObjectName("updateBtn")
+        self.update_btn.setToolTip(
+            "Switch to update mode - rewrite old URLs to new format (Ctrl+U)"
         )
-        self.copy_url_action.triggered.connect(self.set_copy_url_mode)
-        other_modes_menu.addAction(self.copy_url_action)
-
-        self.update_action = QAction("Update Mode (Ctrl+U)", self)
-        self.update_action.setToolTip(
-            "Rewrites old local URLs to new public format"
-        )
-        self.update_action.triggered.connect(self.set_update_mode)
-        other_modes_menu.addAction(self.update_action)
-
-        self.other_modes_btn.setMenu(other_modes_menu)
-        mode_layout.addWidget(self.other_modes_btn)
+        self.update_btn.clicked.connect(self.set_update_mode)
+        mode_layout.addWidget(self.update_btn)
 
         mode_layout.addStretch()
         control_layout.addLayout(mode_layout)
@@ -767,13 +743,6 @@ class NFCGui(QMainWindow):
         self.lock_checkbox.stateChanged.connect(self._on_write_options_changed)
         self.options_layout.addWidget(self.lock_checkbox)
 
-        self.overwrite_checkbox = QCheckBox("Allow overwrite")
-        self.overwrite_checkbox.setChecked(False)
-        self.overwrite_checkbox.setToolTip(
-            "Allow writing to tags that already contain data"
-        )
-        self.overwrite_checkbox.stateChanged.connect(self._on_write_options_changed)
-        self.options_layout.addWidget(self.overwrite_checkbox)
 
         self.verify_checkbox = QCheckBox("Verify after write")
         self.verify_checkbox.setChecked(self.settings.verify_after_write)
@@ -895,9 +864,6 @@ class NFCGui(QMainWindow):
         self.shortcut_read = QShortcut(QKeySequence("Ctrl+R"), self)
         self.shortcut_read.activated.connect(self.set_read_mode)
 
-        self.shortcut_copy_url = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
-        self.shortcut_copy_url.activated.connect(self.set_copy_url_mode)
-
         self.shortcut_write = QShortcut(QKeySequence("Ctrl+W"), self)
         self.shortcut_write.activated.connect(self.set_write_mode)
 
@@ -994,39 +960,32 @@ class NFCGui(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to initialize reader:\n{e}")
 
     def set_read_mode(self):
-        """Switch to read mode (default - opens URLs in browser)"""
+        """Switch to read mode"""
         self.current_mode = "read"
-        self.read_mode_type = "default"
         self.nfc_handler.set_read_mode()
-        self.log_message("Ready to read - present NFC tag")
+
+        # Update status based on auto-open setting
+        if self.settings.auto_open_browser:
+            self.log_message("Ready to read - present NFC tag")
+        else:
+            self.log_message("Ready to read - URLs will be copied to clipboard")
 
         # Update mode indicator (red underline on active button)
         self._update_mode_indicator(self.read_btn)
 
-        # Hide write-mode controls and other mode displays
+        # Hide write-mode controls and update mode display
         self._toggle_write_controls(False)
-        self.url_display_frame.setVisible(False)
         self.update_mode_frame.setVisible(False)
 
+        # Show URL display when auto-open is disabled (copy-only mode)
+        if not self.settings.auto_open_browser:
+            self.url_display_frame.setVisible(True)
+            self.copied_url_display.setText("Present a tag to copy its URL")
+        else:
+            self.url_display_frame.setVisible(False)
+
+        self.update_tray_icon()
         self._play_tts("read_mode")
-
-    def set_copy_url_mode(self):
-        """Switch to copy URL mode (copies URLs to clipboard without opening browser)"""
-        self.current_mode = "read"
-        self.read_mode_type = "copy_url"
-        self.nfc_handler.set_read_mode()
-        self.log_message("Copy URL mode - present NFC tag to copy URL")
-
-        # Update mode indicator (red underline on active button)
-        self._update_mode_indicator(self.other_modes_btn)
-
-        # Hide write-mode controls and update mode, show URL display
-        self._toggle_write_controls(False)
-        self.url_display_frame.setVisible(True)
-        self.update_mode_frame.setVisible(False)
-        self.copied_url_display.setText("Present a tag to copy its URL")
-
-        self._play_tts("copy_url_mode")
 
     def set_write_mode(self):
         """Switch to write mode"""
@@ -1052,7 +1011,7 @@ class NFCGui(QMainWindow):
             self.nfc_handler.set_write_mode(
                 url,
                 lock_after_write=self.lock_checkbox.isChecked(),
-                allow_overwrite=self.overwrite_checkbox.isChecked(),
+                allow_overwrite=True,
             )
             self.nfc_handler.batch_total = self.batch_spinbox.value()
             self.nfc_handler.batch_count = 0
@@ -1060,6 +1019,7 @@ class NFCGui(QMainWindow):
         else:
             self.log_message("Ready to write - enter URL and present tag")
 
+        self.update_tray_icon()
         self._play_tts("ready_to_write")
 
     def set_update_mode(self):
@@ -1070,7 +1030,7 @@ class NFCGui(QMainWindow):
         self.log_message("Present a tag to scan its URL")
 
         # Update mode indicator (red underline on active button)
-        self._update_mode_indicator(self.other_modes_btn)
+        self._update_mode_indicator(self.update_btn)
 
         # Hide write-mode controls and copy URL display
         self._toggle_write_controls(False)
@@ -1084,6 +1044,7 @@ class NFCGui(QMainWindow):
         self.update_confirm_btn.setEnabled(False)
         self.update_cancel_btn.setVisible(False)
 
+        self.update_tray_icon()
         self._play_tts("update_mode")
 
     def open_settings(self):
@@ -1110,7 +1071,6 @@ class NFCGui(QMainWindow):
 
         # Options controls
         self.lock_checkbox.setVisible(visible)
-        self.overwrite_checkbox.setVisible(visible)
         self.verify_checkbox.setVisible(visible)
 
         # Batch controls
@@ -1128,11 +1088,11 @@ class NFCGui(QMainWindow):
                     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                         stop:0 #22c55e, stop:1 #16a34a);
                     color: white;
-                    min-width: 140px;
-                    padding: 10px 20px;
+                    min-width: 150px;
+                    padding: 12px 24px;
                     border-radius: 8px;
                     font-weight: 600;
-                    font-size: 13px;
+                    font-size: 14px;
                     border: none;
                     %s
                 }
@@ -1146,11 +1106,11 @@ class NFCGui(QMainWindow):
                     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                         stop:0 #3b82f6, stop:1 #2563eb);
                     color: white;
-                    min-width: 140px;
-                    padding: 10px 20px;
+                    min-width: 150px;
+                    padding: 12px 24px;
                     border-radius: 8px;
                     font-weight: 600;
-                    font-size: 13px;
+                    font-size: 14px;
                     border: none;
                     %s
                 }
@@ -1159,32 +1119,25 @@ class NFCGui(QMainWindow):
                         stop:0 #2563eb, stop:1 #1d4ed8);
                 }
             """,
+            self.update_btn: """
+                QPushButton {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #a855f7, stop:1 #9333ea);
+                    color: white;
+                    min-width: 150px;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    border: none;
+                    %s
+                }
+                QPushButton:hover {
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                        stop:0 #9333ea, stop:1 #7e22ce);
+                }
+            """,
         }
-
-        # Other Modes button style (uses QToolButton)
-        other_modes_style = """
-            QToolButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #64748b, stop:1 #475569);
-                color: white;
-                min-width: 120px;
-                padding: 10px 20px;
-                border-radius: 8px;
-                font-weight: 600;
-                font-size: 13px;
-                border: none;
-                %s
-            }
-            QToolButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #475569, stop:1 #334155);
-            }
-            QToolButton::menu-indicator {
-                image: none;
-                subcontrol-position: right center;
-                padding-right: 4px;
-            }
-        """
 
         # Red underline style
         underline = "border-bottom: 3px solid #ef4444;"
@@ -1194,12 +1147,6 @@ class NFCGui(QMainWindow):
                 btn.setStyleSheet(style_template % underline)
             else:
                 btn.setStyleSheet(style_template % "")
-
-        # Handle Other Modes button separately (it's a QToolButton)
-        if active_button == self.other_modes_btn:
-            self.other_modes_btn.setStyleSheet(other_modes_style % underline)
-        else:
-            self.other_modes_btn.setStyleSheet(other_modes_style % "")
 
     def paste_url(self):
         """Paste URL from clipboard and prepare for writing"""
@@ -1266,7 +1213,7 @@ class NFCGui(QMainWindow):
         self.nfc_handler.set_write_mode(
             url,
             lock_after_write=self.lock_checkbox.isChecked(),
-            allow_overwrite=self.overwrite_checkbox.isChecked(),
+            allow_overwrite=True,
         )
 
         # Preserve batch settings
@@ -1323,7 +1270,7 @@ class NFCGui(QMainWindow):
         self.nfc_handler.set_write_mode(
             url,
             lock_after_write=self.lock_checkbox.isChecked(),
-            allow_overwrite=self.overwrite_checkbox.isChecked(),
+            allow_overwrite=True,
         )
 
     def _on_verify_option_changed(self):
@@ -1349,7 +1296,7 @@ class NFCGui(QMainWindow):
         self.nfc_handler.set_write_mode(
             url,
             lock_after_write=self.lock_checkbox.isChecked(),
-            allow_overwrite=self.overwrite_checkbox.isChecked(),
+            allow_overwrite=True,
         )
 
         # Set batch parameters
@@ -1378,16 +1325,16 @@ class NFCGui(QMainWindow):
         except Exception:
             pass
 
-        if self.read_mode_type == "copy_url":
-            # Copy URL Mode: display URL and copy to clipboard, don't open browser
-            self.copied_url_display.setText(url)
-            self.log_message("URL copied to clipboard", "success")
-            self._play_tts("url_copied")  # Voice announcement for copy mode
-        else:
-            # Default Read Mode: open in browser
+        if self.settings.auto_open_browser:
+            # Auto-open mode: open in browser
             self.log_message("Tag read - opened in browser", "success")
             self._play_tts("tag_opened")  # Voice announcement
             self._open_in_browser(url)
+        else:
+            # Copy-only mode: display URL and copy to clipboard, don't open browser
+            self.copied_url_display.setText(url)
+            self.log_message("URL copied to clipboard", "success")
+            self._play_tts("url_copied")  # Voice announcement for copy mode
 
     @pyqtSlot(str)
     def on_tag_written(self, message):
@@ -1780,8 +1727,31 @@ class NFCGui(QMainWindow):
 
         self.tray_icon.setToolTip("NFC Reader/Writer - Ready")
 
-    def create_tray_icon(self):
-        """Create a simple colored icon for system tray"""
+    def create_tray_icon(self, mode: str = "read"):
+        """Create tray icon based on current mode
+
+        Args:
+            mode: One of "read", "write", "update"
+        """
+        # Get the assets directory relative to this module
+        assets_dir = os.path.join(os.path.dirname(__file__), "..", "assets")
+
+        # Map mode to icon file
+        icon_files = {
+            "read": "tray-read.svg",
+            "write": "tray-write.svg",
+            "update": "tray-update.svg",
+        }
+
+        icon_file = os.path.join(assets_dir, icon_files.get(mode, "tray-read.svg"))
+
+        # Try to load the SVG icon
+        if os.path.exists(icon_file):
+            pixmap = QPixmap(icon_file)
+            if not pixmap.isNull():
+                return pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # Fallback to colored circle if SVG loading fails
         pixmap = QPixmap(64, 64)
         pixmap.fill(Qt.transparent)
 
@@ -1790,13 +1760,33 @@ class NFCGui(QMainWindow):
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # Draw a blue circle
-        painter.setBrush(QColor(33, 150, 243))  # Blue color
+        # Color based on mode
+        colors = {
+            "read": QColor(34, 197, 94),    # Green
+            "write": QColor(59, 130, 246),  # Blue
+            "update": QColor(168, 85, 247), # Purple
+        }
+        painter.setBrush(colors.get(mode, QColor(34, 197, 94)))
         painter.setPen(Qt.NoPen)
         painter.drawEllipse(4, 4, 56, 56)
 
         painter.end()
         return pixmap
+
+    def update_tray_icon(self):
+        """Update tray icon to reflect current mode"""
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            icon = self.create_tray_icon(self.current_mode)
+            self.tray_icon.setIcon(QIcon(icon))
+
+            # Update tooltip
+            mode_names = {
+                "read": "Read Mode",
+                "write": "Write Mode",
+                "update": "Update Mode",
+            }
+            mode_name = mode_names.get(self.current_mode, "Ready")
+            self.tray_icon.setToolTip(f"NFC Reader/Writer - {mode_name}")
 
     def tray_icon_activated(self, reason):
         """Handle tray icon activation (click)"""

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Tray icon for Write Mode - Pen/Pencil -->
+
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#3b82f6"/>
+
+  <!-- Pen body -->
+  <g transform="rotate(-45 32 32)">
+    <!-- Pen barrel -->
+    <rect x="26" y="10" width="12" height="32" rx="2" ry="2" fill="#ffffff"/>
+
+    <!-- Pen tip -->
+    <path d="M 26 42 L 32 54 L 38 42 Z" fill="#fbbf24"/>
+
+    <!-- Pen grip lines -->
+    <line x1="26" y1="18" x2="38" y2="18" stroke="#e5e7eb" stroke-width="2"/>
+    <line x1="26" y1="24" x2="38" y2="24" stroke="#e5e7eb" stroke-width="2"/>
+
+    <!-- Pen top -->
+    <rect x="26" y="8" width="12" height="6" rx="1" ry="1" fill="#f8fafc"/>
+  </g>
+</svg>
