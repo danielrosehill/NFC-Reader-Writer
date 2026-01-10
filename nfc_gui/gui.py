@@ -16,6 +16,8 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QLineEdit,
     QCheckBox,
+    QRadioButton,
+    QButtonGroup,
     QSpinBox,
     QGroupBox,
     QMessageBox,
@@ -130,6 +132,28 @@ class SettingsDialog(QWidget):
             "In write mode: if a locked tag with a URL is detected, automatically open the URL in browser and switch to read mode"
         )
         write_layout.addWidget(self.open_locked_url_checkbox)
+
+        # Password protection section
+        password_layout = QHBoxLayout()
+        password_layout.addWidget(QLabel("Tag Password:"))
+        self.password_input = QLineEdit()
+        self.password_input.setText(self.settings.tag_password)
+        self.password_input.setMaxLength(4)
+        self.password_input.setPlaceholderText("4 chars")
+        self.password_input.setToolTip(
+            "4-character password for NTAG password protection mode. "
+            "Tags can be rewritten by anyone who knows this password."
+        )
+        self.password_input.setMaximumWidth(100)
+        password_layout.addWidget(self.password_input)
+        password_layout.addStretch()
+        write_layout.addLayout(password_layout)
+
+        password_help = QLabel(
+            "Set a password to enable 'Password Protect' option in Write Mode"
+        )
+        password_help.setStyleSheet("color: #666; font-size: 11px;")
+        write_layout.addWidget(password_help)
 
         write_group.setLayout(write_layout)
         layout.addWidget(write_group)
@@ -276,6 +300,8 @@ class SettingsDialog(QWidget):
         self.settings.tts_enabled = self.tts_checkbox.isChecked()
         self.settings.auto_open_browser = self.auto_open_browser_checkbox.isChecked()
         self.settings.open_locked_tag_url = self.open_locked_url_checkbox.isChecked()
+        self.settings.tag_password = self.password_input.text().strip()
+        self.settings.use_password_protection = bool(self.settings.tag_password)
         if self.settings.save():
             QMessageBox.information(self, "Success", "Settings saved successfully")
             self.close()
@@ -735,16 +761,27 @@ class NFCGui(QMainWindow):
         # Options - Write mode only
         self.options_layout = QHBoxLayout()
 
-        self.lock_checkbox = QCheckBox("Lock tag after writing")
-        self.lock_checkbox.setChecked(True)
-        self.lock_checkbox.setToolTip(
-            "Lock tag to prevent further writes (recommended for single-use tags)"
-        )
-        self.lock_checkbox.stateChanged.connect(self._on_write_options_changed)
-        self.options_layout.addWidget(self.lock_checkbox)
+        # Protection type radio buttons
+        self.protection_group = QButtonGroup(self)
+        self.lock_radio = QRadioButton("Permanent Lock")
+        self.lock_radio.setToolTip("Lock tag permanently - cannot be rewritten")
+        self.password_radio = QRadioButton("Password Protect")
+        self.password_radio.setToolTip("Protect with password - can be rewritten with password")
 
+        # Set default based on settings
+        if self.settings.use_password_protection and self.settings.tag_password:
+            self.password_radio.setChecked(True)
+        else:
+            self.lock_radio.setChecked(True)
 
-        self.verify_checkbox = QCheckBox("Verify after write")
+        self.protection_group.addButton(self.lock_radio)
+        self.protection_group.addButton(self.password_radio)
+        self.protection_group.buttonClicked.connect(self._on_write_options_changed)
+
+        self.options_layout.addWidget(self.lock_radio)
+        self.options_layout.addWidget(self.password_radio)
+
+        self.verify_checkbox = QCheckBox("Verify")
         self.verify_checkbox.setChecked(self.settings.verify_after_write)
         self.verify_checkbox.setToolTip(
             "Read tag back after writing to verify the URL was correctly written"
@@ -1008,10 +1045,11 @@ class NFCGui(QMainWindow):
         if url:
             if not url.startswith(("http://", "https://")):
                 url = "https://" + url
+            protection = self._get_protection_params()
             self.nfc_handler.set_write_mode(
                 url,
-                lock_after_write=self.lock_checkbox.isChecked(),
                 allow_overwrite=True,
+                **protection
             )
             self.nfc_handler.batch_total = self.batch_spinbox.value()
             self.nfc_handler.batch_count = 0
@@ -1070,7 +1108,8 @@ class NFCGui(QMainWindow):
         self.paste_btn.setVisible(visible)
 
         # Options controls
-        self.lock_checkbox.setVisible(visible)
+        self.lock_radio.setVisible(visible)
+        self.password_radio.setVisible(visible)
         self.verify_checkbox.setVisible(visible)
 
         # Batch controls
@@ -1210,10 +1249,11 @@ class NFCGui(QMainWindow):
             url = "https://" + url
 
         # Update the NFC handler with new URL
+        protection = self._get_protection_params()
         self.nfc_handler.set_write_mode(
             url,
-            lock_after_write=self.lock_checkbox.isChecked(),
             allow_overwrite=True,
+            **protection
         )
 
         # Preserve batch settings
@@ -1254,9 +1294,34 @@ class NFCGui(QMainWindow):
         if current < self.batch_spinbox.maximum():
             self.batch_spinbox.setValue(current + 1)
 
-    def _on_write_options_changed(self):
-        """Handle lock/overwrite checkbox changes - auto-update write mode configuration"""
+    def _get_protection_params(self):
+        """Get protection parameters based on UI selection"""
+        use_password = self.password_radio.isChecked()
+        if use_password:
+            return {
+                'lock_after_write': False,
+                'use_password': True,
+                'password': self.settings.tag_password
+            }
+        else:
+            return {
+                'lock_after_write': True,
+                'use_password': False,
+                'password': ''
+            }
+
+    def _on_write_options_changed(self, btn=None):
+        """Handle protection option changes - auto-update write mode configuration"""
         if self.current_mode != "write":
+            return
+
+        # Check if password mode selected but no password set
+        if self.password_radio.isChecked() and not self.settings.tag_password:
+            QMessageBox.warning(
+                self, "Password Required",
+                "Please set a password in Settings before using password protection."
+            )
+            self.lock_radio.setChecked(True)
             return
 
         url = self.url_input.text().strip()
@@ -1267,10 +1332,11 @@ class NFCGui(QMainWindow):
             url = "https://" + url
 
         # Update the handler with new options
+        protection = self._get_protection_params()
         self.nfc_handler.set_write_mode(
             url,
-            lock_after_write=self.lock_checkbox.isChecked(),
             allow_overwrite=True,
+            **protection
         )
 
     def _on_verify_option_changed(self):
@@ -1293,10 +1359,11 @@ class NFCGui(QMainWindow):
         batch_count = self.batch_spinbox.value()
 
         # Set write mode
+        protection = self._get_protection_params()
         self.nfc_handler.set_write_mode(
             url,
-            lock_after_write=self.lock_checkbox.isChecked(),
             allow_overwrite=True,
+            **protection
         )
 
         # Set batch parameters

@@ -30,6 +30,8 @@ class NFCHandler:
         self.debug_mode = debug_mode
         self.cards_processed = 0
         self.lock_tags = False  # Whether to permanently lock tags after writing
+        self.use_password = False  # Whether to use password protection instead of permanent lock
+        self.tag_password = ""  # Password for NTAG password protection
         self.allow_overwrite = False  # Safety: do not overwrite existing NDEF by default
         self.last_read_time = 0  # Timestamp of last successful read
         self.read_cooldown = 3.0  # Cooldown period in seconds
@@ -242,6 +244,81 @@ class NFCHandler:
         except Exception:
             return False
 
+    def set_password_protection(self, connection: CardConnection, password: str) -> bool:
+        """Set password protection on NTAG213 tag (write-protected, readable by all)
+
+        NTAG213 config pages:
+        - Page 41 (0x29): CFG0 - MIRROR, AUTH0 (byte 3)
+        - Page 42 (0x2A): CFG1 - ACCESS config (byte 0), AUTHLIM
+        - Page 43 (0x2B): PWD - 4-byte password
+        - Page 44 (0x2C): PACK - 2-byte password acknowledgment
+
+        Args:
+            connection: Active card connection
+            password: 4-character password (will be padded/truncated to 4 bytes)
+
+        Returns:
+            True if password protection was set successfully
+        """
+        try:
+            # Ensure password is exactly 4 bytes
+            pwd_bytes = password.encode('utf-8')[:4].ljust(4, b'\x00')
+
+            # Step 1: Write password to page 43 (0x2B)
+            if not self._pcsc_write_page(connection, 0x2B, pwd_bytes):
+                return False
+            time.sleep(0.05)
+
+            # Step 2: Write PACK (password acknowledgment) to page 44 (0x2C)
+            # Using simple PACK value - first 2 bytes of password hash
+            pack_bytes = bytes([pwd_bytes[0] ^ 0xAA, pwd_bytes[1] ^ 0x55, 0x00, 0x00])
+            if not self._pcsc_write_page(connection, 0x2C, pack_bytes):
+                return False
+            time.sleep(0.05)
+
+            # Step 3: Read current CFG0 (page 41) to preserve MIRROR settings
+            cfg0 = self._pcsc_read_page(connection, 0x29)
+            if not cfg0:
+                cfg0 = bytes([0x04, 0x00, 0x00, 0xFF])  # Default values
+
+            # Set AUTH0 to page 4 (0x04) - protect from page 4 onwards (NDEF data area)
+            cfg0_new = bytes([cfg0[0], cfg0[1], cfg0[2], 0x04])
+            if not self._pcsc_write_page(connection, 0x29, cfg0_new):
+                return False
+            time.sleep(0.05)
+
+            # Step 4: Read current CFG1 (page 42) and set ACCESS bits
+            cfg1 = self._pcsc_read_page(connection, 0x2A)
+            if not cfg1:
+                cfg1 = bytes([0x00, 0x05, 0x00, 0x00])  # Default values
+
+            # Set PROT=0 (write protection only), keep CFGLCK=0 (config not locked)
+            # ACCESS byte: bit 7 = PROT, bits 2-0 = AUTHLIM
+            # PROT=0 means write-only protection (anyone can read)
+            # AUTHLIM=0 means unlimited auth attempts
+            access_byte = cfg1[0] & 0x7F  # Clear PROT bit (write-only protection)
+            cfg1_new = bytes([access_byte, cfg1[1], cfg1[2], cfg1[3]])
+            if not self._pcsc_write_page(connection, 0x2A, cfg1_new):
+                return False
+
+            return True
+
+        except Exception:
+            return False
+
+    def is_password_protected(self, connection: CardConnection) -> bool:
+        """Check if tag has password protection enabled"""
+        try:
+            # Read CFG0 (page 41) and check AUTH0 value
+            cfg0 = self._pcsc_read_page(connection, 0x29)
+            if cfg0 and len(cfg0) >= 4:
+                auth0 = cfg0[3]
+                # If AUTH0 < 0xFF, password protection is enabled from that page
+                return auth0 < 0xFF
+            return False
+        except Exception:
+            return False
+
     def start_monitoring(self, read_callback: Callable = None, write_callback: Callable = None,
                          update_callback: Callable = None, log_callback: Callable = None,
                          outdated_callback: Callable = None, update_scan_callback: Callable = None,
@@ -280,11 +357,22 @@ class NFCHandler:
         self.observer = None
         self.is_monitoring = False
 
-    def set_write_mode(self, url: str, lock_after_write: bool = False, allow_overwrite: bool = False):
-        """Set write mode with URL and optional locking"""
+    def set_write_mode(self, url: str, lock_after_write: bool = False, allow_overwrite: bool = False,
+                       use_password: bool = False, password: str = ""):
+        """Set write mode with URL and protection options
+
+        Args:
+            url: URL to write to tag
+            lock_after_write: Permanently lock tag (mutually exclusive with use_password)
+            allow_overwrite: Allow overwriting existing data
+            use_password: Use password protection instead of permanent lock
+            password: Password for NTAG password protection (4 chars)
+        """
         self.mode = "write"
         self.url_to_write = url
-        self.lock_tags = lock_after_write
+        self.lock_tags = lock_after_write and not use_password
+        self.use_password = use_password
+        self.tag_password = password
         self.allow_overwrite = allow_overwrite
 
     def set_read_mode(self):
@@ -429,7 +517,13 @@ class NFCObserver(CardObserver):
 
                 success_msg = "Written"
 
-                if self.nfc_handler.lock_tags:
+                # Apply protection: either permanent lock or password
+                if self.nfc_handler.use_password and self.nfc_handler.tag_password:
+                    if self.nfc_handler.set_password_protection(connection, self.nfc_handler.tag_password):
+                        success_msg += " & password protected"
+                    else:
+                        success_msg += " (password protection failed)"
+                elif self.nfc_handler.lock_tags:
                     if self.nfc_handler.lock_tag_permanently(connection):
                         success_msg += " & locked"
                     else:

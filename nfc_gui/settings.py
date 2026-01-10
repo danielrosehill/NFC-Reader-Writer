@@ -27,6 +27,8 @@ class Settings:
         self.auto_open_browser: bool = True  # Auto-open URLs in browser when reading tags
         self.open_locked_tag_url: bool = False  # Open URL and switch to read mode when locked tag detected in write mode
         self.verify_after_write: bool = True  # Verify writes by reading back and comparing
+        self.use_password_protection: bool = False  # False = permanent lock, True = password protection
+        self.tag_password: str = ""  # 4-character password for NTAG password protection
         self.load()
 
     def load(self) -> None:
@@ -41,6 +43,8 @@ class Settings:
                     self.auto_open_browser = data.get('auto_open_browser', True)
                     self.open_locked_tag_url = data.get('open_locked_tag_url', False)
                     self.verify_after_write = data.get('verify_after_write', True)
+                    self.use_password_protection = data.get('use_password_protection', False)
+                    self.tag_password = data.get('tag_password', "")
             except (json.JSONDecodeError, IOError):
                 # Use defaults if file is corrupted
                 pass
@@ -56,7 +60,9 @@ class Settings:
                     'tts_enabled': self.tts_enabled,
                     'auto_open_browser': self.auto_open_browser,
                     'open_locked_tag_url': self.open_locked_tag_url,
-                    'verify_after_write': self.verify_after_write
+                    'verify_after_write': self.verify_after_write,
+                    'use_password_protection': self.use_password_protection,
+                    'tag_password': self.tag_password
                 }, f, indent=2)
             return True
         except IOError:
