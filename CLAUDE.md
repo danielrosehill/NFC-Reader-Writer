@@ -35,8 +35,8 @@ All TTS files are stored in: `nfc_gui/sounds/`
 - `batch_started.ogg` - "Batch started"
 - `batch_finished.ogg` - "Batch finished"
 - `read_mode.ogg` - "Read mode"
-- `copy_url_mode.ogg` - "Copy URL mode"
-- `url_copied.ogg` - "URL copied"
+- `copy_url_mode.ogg` - "Copy URL mode" (legacy, still plays in some contexts)
+- `url_copied.ogg` - "URL copied" (plays when auto-open browser is disabled)
 - `ready_to_write.ogg` - "Ready to write"
 - `update_mode.ogg` - "Update mode"
 - `update_failed.ogg` - "Update failed"
@@ -73,5 +73,18 @@ Update mode is a **two-step workflow**:
 
 - PyQt5 GUI application
 - pyscard for NFC communication
-- Settings stored in `~/.config/nfc-reader/config.json`
+- Settings stored in `~/.config/nfc-gui/settings.json`
 - Sound files played via `paplay` (PulseAudio/PipeWire)
+- Tray icons stored in `assets/` (tray-read.svg, tray-write.svg, tray-update.svg)
+
+## UI Modes
+
+The app has three main modes:
+- **Read Mode** (green): Read tags and open/copy URLs based on settings
+- **Write Mode** (blue): Write URLs to blank NFC tags
+- **Update Mode** (purple): Scan old tags and write updated URLs to new tags
+
+**Settings:**
+- "Auto-open URLs in browser" controls read mode behavior
+  - When enabled: URLs are opened automatically in browser
+  - When disabled: URLs are only copied to clipboard (like legacy Copy URL Mode)

@@ -24,6 +24,7 @@ class Settings:
         self.source_pattern: str = self.DEFAULT_PATTERN
         self.target_base_url: str = self.DEFAULT_TARGET
         self.tts_enabled: bool = True  # Voice announcements enabled by default
+        self.auto_open_browser: bool = True  # Auto-open URLs in browser when reading tags
         self.open_locked_tag_url: bool = False  # Open URL and switch to read mode when locked tag detected in write mode
         self.verify_after_write: bool = True  # Verify writes by reading back and comparing
         self.load()
@@ -37,6 +38,7 @@ class Settings:
                     self.source_pattern = data.get('source_pattern', self.DEFAULT_PATTERN)
                     self.target_base_url = data.get('target_base_url', self.DEFAULT_TARGET)
                     self.tts_enabled = data.get('tts_enabled', True)
+                    self.auto_open_browser = data.get('auto_open_browser', True)
                     self.open_locked_tag_url = data.get('open_locked_tag_url', False)
                     self.verify_after_write = data.get('verify_after_write', True)
             except (json.JSONDecodeError, IOError):
@@ -52,6 +54,7 @@ class Settings:
                     'source_pattern': self.source_pattern,
                     'target_base_url': self.target_base_url,
                     'tts_enabled': self.tts_enabled,
+                    'auto_open_browser': self.auto_open_browser,
                     'open_locked_tag_url': self.open_locked_tag_url,
                     'verify_after_write': self.verify_after_write
                 }, f, indent=2)

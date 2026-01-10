@@ -5,7 +5,7 @@ set -e
 # Rebuilds Debian package and updates installed version
 
 APP_NAME="nfc-gui"
-APP_VERSION="1.4.12"
+APP_VERSION="1.4.13"
 
 # Colors
 GREEN='\033[0;32m'
