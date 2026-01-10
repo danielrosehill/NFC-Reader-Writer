@@ -303,7 +303,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.10")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.11")
         self.setGeometry(100, 100, 800, 500)
 
         # Set modern stylesheet with contemporary design
@@ -1176,6 +1176,10 @@ class NFCGui(QMainWindow):
         try:
             clipboard_content = pyperclip.paste().strip()
             if clipboard_content:
+                # Clean URL: strip any characters before http:// or https://
+                # This handles cases where stray characters get prepended
+                clipboard_content = self._clean_url(clipboard_content)
+
                 # Switch to write mode if not already
                 if self.current_mode != "write":
                     self.set_write_mode()
@@ -1188,6 +1192,31 @@ class NFCGui(QMainWindow):
         except Exception as e:
             self.log_message("Failed to paste from clipboard", "error")
             QMessageBox.critical(self, "Error", f"Failed to paste from clipboard:\n{e}")
+
+    def _clean_url(self, url: str) -> str:
+        """Clean URL by removing any characters before http:// or https://
+
+        This handles cases where stray characters get prepended during paste
+        (e.g., 'ahttps://example.com' -> 'https://example.com')
+        """
+        url = url.strip()
+        if not url:
+            return url
+
+        # If URL already starts correctly, return as-is
+        if url.startswith(('http://', 'https://')):
+            return url
+
+        # Look for http:// or https:// anywhere in the string
+        for prefix in ('https://', 'http://'):
+            pos = url.find(prefix)
+            if pos > 0:
+                # Found the prefix after some stray characters - strip them
+                cleaned = url[pos:]
+                return cleaned
+
+        # No http prefix found - return original (https:// will be added later)
+        return url
 
     def _on_url_changed(self, url: str):
         """Handle URL text changes - auto-update write mode configuration"""
@@ -1476,6 +1505,8 @@ class NFCGui(QMainWindow):
         try:
             clipboard_content = pyperclip.paste().strip()
             if clipboard_content:
+                # Clean URL: strip any stray characters before http://
+                clipboard_content = self._clean_url(clipboard_content)
                 self.update_target_url_input.setText(clipboard_content)
                 self.update_target_url_input.setFocus()
             else:
