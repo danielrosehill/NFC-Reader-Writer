@@ -343,7 +343,7 @@ class NFCGui(QMainWindow):
 
     def init_ui(self):
         """Initialize the user interface"""
-        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.13")
+        self.setWindowTitle("NFC Reader/Writer - ACS ACR1252 - v1.4.16")
         self.setGeometry(100, 100, 800, 520)
 
         # Set modern stylesheet with contemporary design
@@ -1022,6 +1022,7 @@ class NFCGui(QMainWindow):
             self.url_display_frame.setVisible(False)
 
         self.update_tray_icon()
+        self._update_tray_mode_checks()
         self._play_tts("read_mode")
 
     def set_write_mode(self):
@@ -1058,6 +1059,7 @@ class NFCGui(QMainWindow):
             self.log_message("Ready to write - enter URL and present tag")
 
         self.update_tray_icon()
+        self._update_tray_mode_checks()
         self._play_tts("ready_to_write")
 
     def set_update_mode(self):
@@ -1083,6 +1085,7 @@ class NFCGui(QMainWindow):
         self.update_cancel_btn.setVisible(False)
 
         self.update_tray_icon()
+        self._update_tray_mode_checks()
         self._play_tts("update_mode")
 
     def open_settings(self):
@@ -1770,6 +1773,28 @@ class NFCGui(QMainWindow):
 
         tray_menu.addSeparator()
 
+        # Mode selection actions
+        self.tray_read_action = QAction("Read Mode", self)
+        self.tray_read_action.setCheckable(True)
+        self.tray_read_action.setChecked(True)  # Default mode
+        self.tray_read_action.triggered.connect(self._tray_set_read_mode)
+        tray_menu.addAction(self.tray_read_action)
+
+        self.tray_write_action = QAction("Write Mode", self)
+        self.tray_write_action.setCheckable(True)
+        self.tray_write_action.triggered.connect(self._tray_set_write_mode)
+        tray_menu.addAction(self.tray_write_action)
+
+        self.tray_update_action = QAction("Update Mode", self)
+        self.tray_update_action.setCheckable(True)
+        self.tray_update_action.triggered.connect(self._tray_set_update_mode)
+        tray_menu.addAction(self.tray_update_action)
+
+        # Group mode actions for exclusive selection
+        self.tray_mode_group = [self.tray_read_action, self.tray_write_action, self.tray_update_action]
+
+        tray_menu.addSeparator()
+
         # Background read mode toggle
         self.background_read_action = QAction("Background Read Mode", self)
         self.background_read_action.setCheckable(True)
@@ -1793,6 +1818,28 @@ class NFCGui(QMainWindow):
         self.tray_icon.show()
 
         self.tray_icon.setToolTip("NFC Reader/Writer - Ready")
+
+    def _update_tray_mode_checks(self):
+        """Update the checked state of tray mode actions"""
+        if hasattr(self, 'tray_mode_group'):
+            self.tray_read_action.setChecked(self.current_mode == "read")
+            self.tray_write_action.setChecked(self.current_mode == "write")
+            self.tray_update_action.setChecked(self.current_mode == "update")
+
+    def _tray_set_read_mode(self):
+        """Set read mode from tray menu"""
+        self.set_read_mode()
+        self._update_tray_mode_checks()
+
+    def _tray_set_write_mode(self):
+        """Set write mode from tray menu"""
+        self.set_write_mode()
+        self._update_tray_mode_checks()
+
+    def _tray_set_update_mode(self):
+        """Set update mode from tray menu"""
+        self.set_update_mode()
+        self._update_tray_mode_checks()
 
     def create_tray_icon(self, mode: str = "read"):
         """Create tray icon based on current mode
