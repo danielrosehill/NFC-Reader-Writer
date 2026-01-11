@@ -1908,9 +1908,27 @@ class NFCGui(QMainWindow):
             self.show_window()
 
     def show_window(self):
-        """Show and restore the window"""
+        """Show and restore the window, ensuring it's visible and focused"""
+        # First ensure the window is shown
         self.show()
+
+        # Clear minimized state and set active
         self.setWindowState(self.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
+
+        # Raise to top of window stack (important for Wayland)
+        self.raise_()
+
+        # Request focus
+        self.activateWindow()
+
+        # On Wayland/KDE, we may need to call these again after a brief delay
+        # to ensure the window manager processes the request
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(50, self._ensure_window_visible)
+
+    def _ensure_window_visible(self):
+        """Helper to ensure window is actually visible and focused (Wayland workaround)"""
+        self.raise_()
         self.activateWindow()
 
     def hide_to_tray(self):
